@@ -1,7 +1,6 @@
 // lib/screens/splash_screen.dart
 import 'package:flutter/material.dart';
 import '../services/model_service.dart';
-import '../cubits/scan/scan_state.dart';
 import 'home_screen.dart';
 
 class SplashScreen extends StatefulWidget {

@@ -23,7 +23,7 @@ class ModelService extends ChangeNotifier {
   // Emulator  → "http://10.0.2.2:5000"
   // Real device on same WiFi → "http://192.168.x.x:5000"
   // Deployed  → "https://your-api.com"
-static const String _baseUrl = "http://10.62.48.163:5000";
+static const String _baseUrl = "https://maddane-verilens-ai.hf.space";
   // Input limits
   static const int maxChars = 5000;
   static const int minChars = 10;
@@ -161,6 +161,21 @@ static const String _baseUrl = "http://10.62.48.163:5000";
       );
     }
   }
+
+  Future<Map<String, dynamic>> scanUrl(String url) async {
+  final response = await http.post(
+    Uri.parse('$_baseUrl/predict_url'),
+    headers: {'Content-Type': 'application/json'},
+    body: jsonEncode({'url': url}),
+  );
+
+  if (response.statusCode == 200) {
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  } else {
+    final err = jsonDecode(response.body);
+    throw Exception(err['error'] ?? 'URL scan failed');
+  }
+}
 
   void _setError(String message, ScanErrorType type) {
     _hasError     = true;
