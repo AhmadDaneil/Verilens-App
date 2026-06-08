@@ -15,17 +15,31 @@ class DatabaseService {
 
     _db = await openDatabase(
       path,
-      version: 1,
+      version: 2,                         // ← bumped from 1 to 2
       onCreate: (db, version) async {
+        // Fresh install — create table with all columns from the start
         await db.execute('''
           CREATE TABLE $_tableName (
-            id TEXT PRIMARY KEY,
-            text TEXT NOT NULL,
-            isFake INTEGER NOT NULL,
-            confidence REAL NOT NULL,
-            timestamp INTEGER NOT NULL
+            id          TEXT    PRIMARY KEY,
+            text        TEXT    NOT NULL,
+            isFake      INTEGER NOT NULL,
+            confidence  REAL    NOT NULL,
+            timestamp   INTEGER NOT NULL,
+            fakeProb    REAL,
+            realProb    REAL,
+            analyzedAt  INTEGER,
+            highlights  TEXT
           )
         ''');
+      },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        // Existing install — add the 4 new columns to the old table
+        if (oldVersion < 2) {
+          await db.execute('ALTER TABLE $_tableName ADD COLUMN fakeProb   REAL');
+          await db.execute('ALTER TABLE $_tableName ADD COLUMN realProb   REAL');
+          await db.execute('ALTER TABLE $_tableName ADD COLUMN analyzedAt INTEGER');
+          await db.execute('ALTER TABLE $_tableName ADD COLUMN highlights TEXT');
+        }
       },
     );
   }
