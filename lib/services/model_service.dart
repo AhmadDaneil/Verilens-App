@@ -7,8 +7,6 @@ import '../models/scan_result.dart';
 import '../cubits/scan/scan_state.dart';
 import 'package:uuid/uuid.dart';
 
-// Thrown by predict() with a typed cause so the cubit can emit the right
-// ScanErrorType without parsing error message strings.
 class ApiException implements Exception {
   final String message;
   final ScanErrorType type;
@@ -19,12 +17,7 @@ class ApiException implements Exception {
 }
 
 class ModelService extends ChangeNotifier {
-  // ── Config ──────────────────────────────────────────────────────────────
-  // Emulator  → "http://10.0.2.2:5000"
-  // Real device on same WiFi → "http://192.168.x.x:5000"
-  // Deployed  → "https://your-api.com"
-static const String _baseUrl = "https://maddane-verilens-ai.hf.space";
-  // Input limits
+  static const String _baseUrl = "https://maddane-verilens-ai.hf.space";
   static const int maxChars = 5000;
   static const int minChars = 10;
 
@@ -38,7 +31,7 @@ static const String _baseUrl = "https://maddane-verilens-ai.hf.space";
   String? get errorMessage => _errorMessage;
   ScanErrorType? get errorType => _errorType;
 
-  // ── Initialize — verify the API is reachable ─────────────────────────
+  // ── Initialize ────────────────────────────────────────────────────────
   Future<void> loadModel() async {
     debugPrint("📦 Checking API health...");
     try {
@@ -60,22 +53,17 @@ static const String _baseUrl = "https://maddane-verilens-ai.hf.space";
         );
       }
     } on SocketException {
-      debugPrint("❌ Health check: device offline");
       _setError("No internet connection. Please check your network.", ScanErrorType.offline);
     } on TimeoutException {
-      debugPrint("❌ Health check: timed out");
       _setError("Connection timed out. The server may be unavailable.", ScanErrorType.timeout);
     } on ApiException catch (e) {
-      debugPrint("❌ Health check: ${e.message}");
       _setError(e.message, e.type);
     } catch (e) {
-      debugPrint("❌ Health check: unexpected error: $e");
       _setError("Could not reach the server. Please try again.", ScanErrorType.server);
     }
     notifyListeners();
   }
 
-  // ── Retry health check (called from UI retry button) ─────────────────
   Future<void> retry() => loadModel();
 
   // ── Predict ───────────────────────────────────────────────────────────
@@ -89,11 +77,10 @@ static const String _baseUrl = "https://maddane-verilens-ai.hf.space";
       );
     }
 
-    // Client-side input guard (cubit also validates, belt-and-suspenders)
     final trimmed = rawText.trim();
     if (trimmed.length > maxChars) {
       throw ApiException(
-        'Text is too long (${ trimmed.length } chars). '
+        'Text is too long (${trimmed.length} chars). '
         'Please shorten to $maxChars characters or fewer.',
         ScanErrorType.input,
       );
@@ -108,7 +95,7 @@ static const String _baseUrl = "https://maddane-verilens-ai.hf.space";
             headers: {"Content-Type": "application/json"},
             body: jsonEncode({"text": rawText}),
           )
-          .timeout(const Duration(seconds: 30));
+          .timeout(const Duration(seconds: 60)); // raised for LIME
 
       if (response.statusCode != 200) {
         String errorMsg = "Server error (${response.statusCode})";
@@ -126,9 +113,22 @@ static const String _baseUrl = "https://maddane-verilens-ai.hf.space";
       final confidence = (data["confidence"] as num).toDouble();
       final elapsedMs  = data["elapsed_ms"] as int;
 
+      // ── Parse highlights ──────────────────────────────────────────────
+      List<TextHighlight> highlights = [];
+      if (data["highlights"] != null && data["highlights"] is List) {
+        try {
+          highlights = (data["highlights"] as List)
+              .map((h) => TextHighlight.fromJson(h as Map<String, dynamic>))
+              .toList();
+        } catch (e) {
+          debugPrint("⚠️ Failed to parse highlights: $e");
+        }
+      }
+
       debugPrint(
         "✅ Prediction: ${data['label']} "
         "(fake=$fakeScore, real=$realScore) "
+        "highlights=${highlights.length} "
         "in ${DateTime.now().difference(t0).inMilliseconds}ms "
         "(server: ${elapsedMs}ms)",
       );
@@ -139,6 +139,10 @@ static const String _baseUrl = "https://maddane-verilens-ai.hf.space";
         isFake:     isFake,
         confidence: confidence,
         timestamp:  DateTime.now(),
+        fakeProb:   fakeScore,
+        realProb:   realScore,
+        analyzedAt: DateTime.now(),
+        highlights: highlights,   // ← was missing before
       );
 
     } on SocketException {
@@ -162,20 +166,60 @@ static const String _baseUrl = "https://maddane-verilens-ai.hf.space";
     }
   }
 
-  Future<Map<String, dynamic>> scanUrl(String url) async {
-  final response = await http.post(
-    Uri.parse('$_baseUrl/predict_url'),
-    headers: {'Content-Type': 'application/json'},
-    body: jsonEncode({'url': url}),
-  );
+  // ── Scan URL ──────────────────────────────────────────────────────────
+  Future<ScanResult> scanUrl(String url) async {
+    final response = await http
+        .post(
+          Uri.parse('$_baseUrl/predict_url'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'url': url}),
+        )
+        .timeout(const Duration(seconds: 60)); // raised for LIME
 
-  if (response.statusCode == 200) {
-    return jsonDecode(response.body) as Map<String, dynamic>;
-  } else {
-    final err = jsonDecode(response.body);
-    throw Exception(err['error'] ?? 'URL scan failed');
+    if (response.statusCode != 200) {
+      final err = jsonDecode(response.body);
+      throw ApiException(
+        err['error'] ?? 'URL scan failed',
+        ScanErrorType.server,
+      );
+    }
+
+    final data       = jsonDecode(response.body);
+    final isFake     = data["is_fake"]    as bool;
+    final fakeScore  = (data["fake_score"] as num).toDouble();
+    final realScore  = (data["real_score"] as num).toDouble();
+    final confidence = (data["confidence"] as num).toDouble();
+
+    // ── Parse highlights ──────────────────────────────────────────────
+    List<TextHighlight> highlights = [];
+    if (data["highlights"] != null && data["highlights"] is List) {
+      try {
+        highlights = (data["highlights"] as List)
+            .map((h) => TextHighlight.fromJson(h as Map<String, dynamic>))
+            .toList();
+      } catch (e) {
+        debugPrint("⚠️ Failed to parse URL highlights: $e");
+      }
+    }
+
+    // Use article_snippet as displayed text when available
+    final displayText =
+        (data["article_snippet"] as String?)?.isNotEmpty == true
+            ? data["article_snippet"] as String
+            : url;
+
+    return ScanResult(
+      id:         const Uuid().v4(),
+      text:       displayText,
+      isFake:     isFake,
+      confidence: confidence,
+      timestamp:  DateTime.now(),
+      fakeProb:   fakeScore,
+      realProb:   realScore,
+      analyzedAt: DateTime.now(),
+      highlights: highlights,
+    );
   }
-}
 
   void _setError(String message, ScanErrorType type) {
     _hasError     = true;

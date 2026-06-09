@@ -40,7 +40,7 @@ class ResultScreen extends StatelessWidget {
 
               const SizedBox(height: 20),
 
-              // Analyzed Text Card — unchanged
+              // Analyzed Text — now shows colour-highlighted spans
               _buildTextCard()
                   .animate()
                   .fadeIn(delay: 300.ms)
@@ -48,7 +48,7 @@ class ResultScreen extends StatelessWidget {
 
               const SizedBox(height: 20),
 
-              // AI Summary Card — now uses real highlights
+              // AI Summary — sentence with highlighted key words
               _buildAISummaryCard()
                   .animate()
                   .fadeIn(delay: 400.ms)
@@ -56,14 +56,12 @@ class ResultScreen extends StatelessWidget {
 
               const SizedBox(height: 20),
 
-              // Timestamp — unchanged
               _buildTimestamp()
                   .animate()
                   .fadeIn(delay: 500.ms),
 
               const SizedBox(height: 20),
 
-              // Analyze Another Button — unchanged
               _buildAnalyzeAnotherButton(context)
                   .animate()
                   .fadeIn(delay: 600.ms),
@@ -74,7 +72,7 @@ class ResultScreen extends StatelessWidget {
     );
   }
 
-  // ── Analyzed Text card — unchanged ─────────────────────────────────────
+  // ── Analyzed Text — highlighted spans or plain preview fallback ──────────
   Widget _buildTextCard() {
     return Container(
       width: double.infinity,
@@ -108,20 +106,99 @@ class ResultScreen extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          Text(
-            result.preview,
-            style: const TextStyle(
-              fontSize: 13,
-              color: AppColors.textSecond,
-              height: 1.6,
+
+          // Legend — only shown when highlights exist
+          if (result.highlights.isNotEmpty) ...[
+            Row(
+              children: [
+                _legendChip(const Color(0xFFFFCDD2), const Color(0xFFC62828), 'Suspicious'),
+                const SizedBox(width: 10),
+                _legendChip(const Color(0xFFC8E6C9), const Color(0xFF2E7D32), 'Credible'),
+              ],
             ),
-          ),
+            const SizedBox(height: 10),
+          ],
+
+          // Highlighted text or plain fallback
+          result.highlights.isNotEmpty
+              ? _buildHighlightedTextSpans()
+              : Text(
+                  result.text,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textSecond,
+                    height: 1.6,
+                  ),
+                ),
         ],
       ),
     );
   }
 
-  // ── AI Summary card — RichText with real highlighted words ──────────────
+  // Renders each token with its colour based on label
+  Widget _buildHighlightedTextSpans() {
+    return RichText(
+      text: TextSpan(
+        children: result.highlights.map((h) {
+          if (h.label == 'fake') {
+            return TextSpan(
+              text: h.text,
+              style: const TextStyle(
+                fontSize: 13,
+                height: 1.7,
+                color: Color(0xFFC62828),
+                fontWeight: FontWeight.w700,
+                backgroundColor: Color(0xFFFFCDD2),
+              ),
+            );
+          }
+          if (h.label == 'real') {
+            return TextSpan(
+              text: h.text,
+              style: const TextStyle(
+                fontSize: 13,
+                height: 1.7,
+                color: Color(0xFF1B5E20),
+                fontWeight: FontWeight.w700,
+                backgroundColor: Color(0xFFC8E6C9),
+              ),
+            );
+          }
+          // neutral
+          return TextSpan(
+            text: h.text,
+            style: const TextStyle(
+              fontSize: 13,
+              height: 1.7,
+              color: AppColors.textSecond,
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _legendChip(Color bg, Color fg, String label) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(2),
+            border: Border.all(color: fg.withOpacity(0.5)),
+          ),
+        ),
+        const SizedBox(width: 4),
+        Text(label,
+            style: const TextStyle(fontSize: 11, color: AppColors.textSecond)),
+      ],
+    );
+  }
+
+  // ── AI Summary — sentence with highlighted key words ─────────────────────
   Widget _buildAISummaryCard() {
     return Container(
       width: double.infinity,
@@ -181,170 +258,161 @@ class ResultScreen extends StatelessWidget {
     );
   }
 
-  // ── Builds the summary as RichText so flagged words are highlighted ─────
-  //
-  // If highlights are empty (backend hasn't returned them yet) we fall back
-  // to a plain descriptive sentence — never a generic placeholder.
   Widget _buildSummaryRichText() {
-    // ── No highlights available ────────────────────────────────────────────
+    // ── No highlights — describe the score without placeholders ─────────────
     if (result.highlights.isEmpty) {
       final fallback = result.isFake
-          ? 'The model classified this content as likely fake with '
-            '${(result.fakeProb * 100).toStringAsFixed(1)}% probability. '
-            'No word-level breakdown is available for this result.'
-          : 'The model classified this content as likely real with '
-            '${(result.realProb * 100).toStringAsFixed(1)}% probability. '
-            'No word-level breakdown is available for this result.';
+          ? 'The model classified this content as likely fake with a '
+            '${(result.fakeProb * 100).toStringAsFixed(1)}% fake probability. '
+            'Word-level analysis was not available for this result.'
+          : 'The model classified this content as likely real with a '
+            '${(result.realProb * 100).toStringAsFixed(1)}% real probability. '
+            'Word-level analysis was not available for this result.';
       return Text(
         fallback,
         style: const TextStyle(
-          fontSize: 13,
-          color: AppColors.textSecond,
-          height: 1.6,
-        ),
+            fontSize: 13, color: AppColors.textSecond, height: 1.6),
       );
     }
 
-    // ── Pick top suspicious and credible words from LIME highlights ────────
+    // ── Pick the top fake and real words ─────────────────────────────────────
     final fakeTokens = result.highlights
-        .where((h) => h.label == 'fake' && h.score > 0.6)
+        .where((h) => h.label == 'fake')
         .toList()
       ..sort((a, b) => b.score.compareTo(a.score));
 
     final realTokens = result.highlights
-        .where((h) => h.label == 'real' && h.score < 0.4)
+        .where((h) => h.label == 'real')
         .toList()
       ..sort((a, b) => a.score.compareTo(b.score));
 
-    final topFake = fakeTokens.take(3).map((h) => h.text.trim()).toList();
-    final topReal = realTokens.take(2).map((h) => h.text.trim()).toList();
+    final topFake  = fakeTokens.take(3).map((h) => h.text.trim()).where((t) => t.isNotEmpty).toList();
+    final topReal  = realTokens.take(2).map((h) => h.text.trim()).where((t) => t.isNotEmpty).toList();
     final scorePct = (result.fakeProb * 100).toStringAsFixed(1);
 
-    // ── Assemble sentence parts ────────────────────────────────────────────
-    // Each part is plain text OR a highlighted word (red=fake, green=real).
+    // ── Build sentence parts ──────────────────────────────────────────────────
     final List<_Part> parts = [];
 
     void plain(String t) {
       if (t.isNotEmpty) parts.add(_Part(t));
     }
 
-    void words(List<String> ws, {required bool isFake, required String sep}) {
+    void fakeWords(List<String> ws) {
       for (int i = 0; i < ws.length; i++) {
-        parts.add(_Part('"${ws[i]}"', isFake: isFake));
-        if (i < ws.length - 1) plain(sep);
+        parts.add(_Part('"${ws[i]}"', isFake: true));
+        if (i < ws.length - 1) plain(', ');
+      }
+    }
+
+    void realWords(List<String> ws) {
+      for (int i = 0; i < ws.length; i++) {
+        parts.add(_Part('"${ws[i]}"', isFake: false));
+        if (i < ws.length - 1) plain(' and ');
       }
     }
 
     if (result.fakeProb >= 0.55) {
-      plain('The model flagged this as likely misleading ($scorePct% fake). ');
+      plain('The model flagged this content as likely misleading ($scorePct% fake probability). ');
       if (topFake.isNotEmpty) {
         plain('The word${topFake.length > 1 ? 's' : ''} ');
-        words(topFake, isFake: true, sep: ', ');
+        fakeWords(topFake);
         plain(
           ' ${topFake.length > 1 ? 'push' : 'pushes'} the score toward fake'
           ' — ${topFake.length > 1 ? 'they carry' : 'it carries'} emotional,'
-          ' sensational, or speculative language uncommon in factual reporting. ',
+          ' sensational, or speculative language uncommon in factual reporting.',
         );
       }
       if (topReal.isNotEmpty) {
-        plain('In contrast, ');
-        words(topReal, isFake: false, sep: ' and ');
+        plain(' In contrast, ');
+        realWords(topReal);
         plain(
           ' ${topReal.length == 1 ? 'pulls' : 'pull'} the score toward real'
-          ' — ${topReal.length == 1 ? 'it uses' : 'they use'} neutral,'
-          ' factual language that reduced the overall fake score.',
+          ' — ${topReal.length == 1 ? 'it uses' : 'they use'} neutral language'
+          ' that reduced the overall fake score.',
         );
       }
-      if (topFake.isEmpty && topReal.isEmpty) {
-        plain(
-          'The model found subtle linguistic patterns associated with'
-          ' misinformation throughout the text.',
-        );
+      if (topFake.isEmpty) {
+        plain('Subtle linguistic patterns associated with misinformation were detected throughout the text.');
       }
     } else if (result.fakeProb <= 0.45) {
-      plain('The model considers this content likely credible ($scorePct% fake). ');
+      plain('The model considers this content likely credible ($scorePct% fake probability). ');
       if (topReal.isNotEmpty) {
         plain('The word${topReal.length > 1 ? 's' : ''} ');
-        words(topReal, isFake: false, sep: ', ');
+        realWords(topReal);
         plain(
-          ' ${topReal.length > 1 ? 'anchor' : 'anchors'} the real score —'
-          ' ${topReal.length > 1 ? 'they use' : 'it uses'} neutral, factual'
-          ' language consistent with credible journalism. ',
+          ' ${topReal.length > 1 ? 'anchor' : 'anchors'} the real score'
+          ' — ${topReal.length > 1 ? 'they use' : 'it uses'} neutral, factual'
+          ' language consistent with credible journalism.',
         );
       }
       if (topFake.isNotEmpty) {
-        plain('However, ');
-        words(topFake, isFake: true, sep: ' and ');
+        plain(' However, ');
+        fakeWords(topFake);
         plain(
           ' ${topFake.length == 1 ? 'carries' : 'carry'} slightly charged'
           ' language — exercise caution with'
           ' ${topFake.length == 1 ? 'that phrase' : 'those phrases'}.',
         );
       }
-      if (topReal.isEmpty && topFake.isEmpty) {
-        plain(
-          'The overall tone and structure align with factual reporting,'
-          ' though always verify from multiple sources.',
-        );
+      if (topReal.isEmpty) {
+        plain('The overall tone and structure align with factual reporting, though always verify from multiple sources.');
       }
     } else {
       plain('The model is uncertain ($scorePct% — near 50/50). ');
       if (topFake.isNotEmpty) {
-        words(topFake, isFake: true, sep: ' and ');
-        plain(
-          ' ${topFake.length == 1 ? 'leans' : 'lean'} toward misinformation',
-        );
+        fakeWords(topFake);
+        plain(' ${topFake.length == 1 ? 'leans' : 'lean'} toward misinformation');
         plain(topReal.isNotEmpty ? ', while ' : '. ');
       }
       if (topReal.isNotEmpty) {
-        words(topReal, isFake: false, sep: ' and ');
-        plain(
-          ' ${topReal.length == 1 ? 'reads' : 'read'} as more credible. ',
-        );
+        realWords(topReal);
+        plain(' ${topReal.length == 1 ? 'reads' : 'read'} as more credible. ');
       }
       plain('Cross-check with a trusted source before sharing.');
     }
 
-    // ── Render parts as a RichText ─────────────────────────────────────────
-    final spans = parts.map((p) {
-      if (p.isFake == true) {
-        return TextSpan(
-          text: p.text,
-          style: const TextStyle(
-            fontSize: 13,
-            height: 1.6,
-            color: Color(0xFFC62828),
-            fontWeight: FontWeight.w700,
-            backgroundColor: Color(0xFFFFCDD2),
-          ),
-        );
-      }
-      if (p.isFake == false) {
-        return TextSpan(
-          text: p.text,
-          style: const TextStyle(
-            fontSize: 13,
-            height: 1.6,
-            color: Color(0xFF1B5E20),
-            fontWeight: FontWeight.w700,
-            backgroundColor: Color(0xFFC8E6C9),
-          ),
-        );
-      }
-      return TextSpan(
-        text: p.text,
-        style: const TextStyle(
-          fontSize: 13,
-          color: AppColors.textSecond,
-          height: 1.6,
-        ),
-      );
-    }).toList();
-
-    return RichText(text: TextSpan(children: spans));
+    // ── Render as RichText ────────────────────────────────────────────────────
+    return RichText(
+      text: TextSpan(
+        children: parts.map((p) {
+          if (p.isFake == true) {
+            return TextSpan(
+              text: p.text,
+              style: const TextStyle(
+                fontSize: 13,
+                height: 1.6,
+                color: Color(0xFFC62828),
+                fontWeight: FontWeight.w700,
+                backgroundColor: Color(0xFFFFCDD2),
+              ),
+            );
+          }
+          if (p.isFake == false) {
+            return TextSpan(
+              text: p.text,
+              style: const TextStyle(
+                fontSize: 13,
+                height: 1.6,
+                color: Color(0xFF1B5E20),
+                fontWeight: FontWeight.w700,
+                backgroundColor: Color(0xFFC8E6C9),
+              ),
+            );
+          }
+          return TextSpan(
+            text: p.text,
+            style: const TextStyle(
+              fontSize: 13,
+              color: AppColors.textSecond,
+              height: 1.6,
+            ),
+          );
+        }).toList(),
+      ),
+    );
   }
 
-  // ── Timestamp — unchanged ───────────────────────────────────────────────
+  // ── Timestamp — unchanged ────────────────────────────────────────────────
   Widget _buildTimestamp() {
     final formatted =
         DateFormat('dd MMM yyyy, hh:mm a').format(result.timestamp);
@@ -361,7 +429,7 @@ class ResultScreen extends StatelessWidget {
     );
   }
 
-  // ── Analyze Another button — unchanged ─────────────────────────────────
+  // ── Analyze Another button — unchanged ──────────────────────────────────
   Widget _buildAnalyzeAnotherButton(BuildContext context) {
     return SizedBox(
       width: double.infinity,
@@ -385,10 +453,10 @@ class ResultScreen extends StatelessWidget {
   }
 }
 
-// ── Internal helper — one piece of the summary sentence ─────────────────────
+// ── Internal helper ──────────────────────────────────────────────────────────
 class _Part {
   final String text;
-  final bool? isFake; // true = red, false = green, null = plain
+  final bool? isFake; // true=red, false=green, null=plain
 
   const _Part(this.text, {this.isFake});
 }
