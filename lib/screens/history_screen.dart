@@ -25,8 +25,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final textPrimary = Theme.of(context).textTheme.bodyLarge?.color  ?? AppColors.textPrimary;
+    final textSecond  = Theme.of(context).textTheme.bodyMedium?.color ?? AppColors.textSecond;
+
     return Scaffold(
-      backgroundColor: AppColors.background,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(20),
@@ -37,24 +39,16 @@ class _HistoryScreenState extends State<HistoryScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Column(
+                  Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Scan History',
-                        style: TextStyle(
-                          fontSize: 26,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                      Text(
-                        'Your previous analyses',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: AppColors.textSecond,
-                        ),
-                      ),
+                      Text('Scan History',
+                          style: TextStyle(
+                              fontSize: 26,
+                              fontWeight: FontWeight.bold,
+                              color: textPrimary)),
+                      Text('Your previous analyses',
+                          style: TextStyle(fontSize: 14, color: textSecond)),
                     ],
                   ),
                   BlocBuilder<HistoryCubit, HistoryState>(
@@ -62,10 +56,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       if (state is HistoryLoaded) {
                         return IconButton(
                           onPressed: () => _confirmClear(context),
-                          icon: const Icon(
-                            Icons.delete_sweep_outlined,
-                            color: AppColors.fake,
-                          ),
+                          icon: const Icon(Icons.delete_sweep_outlined,
+                              color: AppColors.fake),
                           tooltip: 'Clear History',
                         );
                       }
@@ -77,30 +69,17 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
               const SizedBox(height: 20),
 
-              // Content
               Expanded(
                 child: BlocBuilder<HistoryCubit, HistoryState>(
                   builder: (context, state) {
                     if (state is HistoryLoading) {
                       return const Center(
-                        child: CircularProgressIndicator(
-                          color: AppColors.primary,
-                        ),
+                        child: CircularProgressIndicator(color: AppColors.primary),
                       );
                     }
-
-                    if (state is HistoryEmpty) {
-                      return _buildEmptyState();
-                    }
-
-                    if (state is HistoryError) {
-                      return _buildErrorState(state.message);
-                    }
-
-                    if (state is HistoryLoaded) {
-                      return _buildHistoryList(context, state.results);
-                    }
-
+                    if (state is HistoryEmpty)  return _buildEmptyState(context);
+                    if (state is HistoryError)  return _buildErrorState(context, state.message);
+                    if (state is HistoryLoaded) return _buildHistoryList(context, state.results);
                     return const SizedBox.shrink();
                   },
                 ),
@@ -112,56 +91,35 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState(BuildContext context) {
+    final textSecond = Theme.of(context).textTheme.bodyMedium?.color ?? AppColors.textSecond;
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.history_outlined,
-            size: 80,
-            color: Colors.grey.shade300,
-          ),
+          Icon(Icons.history_outlined, size: 80,
+              color: Theme.of(context).dividerColor),
           const SizedBox(height: 16),
-          const Text(
-            'No scan history yet',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textSecond,
-            ),
-          ),
+          Text('No scan history yet',
+              style: TextStyle(
+                  fontSize: 18, fontWeight: FontWeight.w600, color: textSecond)),
           const SizedBox(height: 8),
-          const Text(
-            'Your analyzed texts will appear here',
-            style: TextStyle(
-              fontSize: 14,
-              color: AppColors.textSecond,
-            ),
-          ),
+          Text('Your analyzed texts will appear here',
+              style: TextStyle(fontSize: 14, color: textSecond)),
         ],
       ).animate().fadeIn(),
     );
   }
 
-  Widget _buildErrorState(String message) {
+  Widget _buildErrorState(BuildContext context, String message) {
+    final textSecond = Theme.of(context).textTheme.bodyMedium?.color ?? AppColors.textSecond;
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(
-            Icons.error_outline,
-            size: 60,
-            color: AppColors.fake,
-          ),
+          const Icon(Icons.error_outline, size: 60, color: AppColors.fake),
           const SizedBox(height: 16),
-          Text(
-            message,
-            style: const TextStyle(
-              fontSize: 14,
-              color: AppColors.textSecond,
-            ),
-          ),
+          Text(message, style: TextStyle(fontSize: 14, color: textSecond)),
           const SizedBox(height: 16),
           ElevatedButton(
             onPressed: () => context.read<HistoryCubit>().loadHistory(),
@@ -173,26 +131,23 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 
   Widget _buildHistoryList(BuildContext context, List<ScanResult> results) {
-  return ListView.separated(
-    itemCount: results.length,
-    separatorBuilder: (_, __) => const SizedBox(height: 12),
-    itemBuilder: (context, index) {
-      final item = results[index];
-      return HistoryTile(
-        result: item,
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => ResultScreen(result: item),
+    return ListView.separated(
+      itemCount: results.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      itemBuilder: (context, index) {
+        final item = results[index];
+        return HistoryTile(
+          result: item,
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => ResultScreen(result: item)),
           ),
-        ),
-        onDelete: () => context.read<HistoryCubit>().deleteScan(item.id as int),
-      ).animate().fadeIn(
-        delay: Duration(milliseconds: index * 80),
-      );
-    },
-  );
-}
+          onDelete: () =>
+              context.read<HistoryCubit>().deleteScan(item.id as int),
+        ).animate().fadeIn(delay: Duration(milliseconds: index * 80));
+      },
+    );
+  }
 
   void _confirmClear(BuildContext context) {
     showDialog(
@@ -212,10 +167,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
               Navigator.pop(context);
               context.read<HistoryCubit>().clearHistory();
             },
-            child: const Text(
-              'Clear All',
-              style: TextStyle(color: AppColors.fake),
-            ),
+            child: const Text('Clear All',
+                style: TextStyle(color: AppColors.fake)),
           ),
         ],
       ),

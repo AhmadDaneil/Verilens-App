@@ -66,7 +66,7 @@ class ModelService extends ChangeNotifier {
 
   Future<void> retry() => loadModel();
 
-  // ── Predict ───────────────────────────────────────────────────────────
+  // ── Predict (text input) ──────────────────────────────────────────────
   Future<ScanResult> predict(String rawText) async {
     debugPrint("🔥 predict() called, isLoaded=$_isLoaded");
 
@@ -95,7 +95,7 @@ class ModelService extends ChangeNotifier {
             headers: {"Content-Type": "application/json"},
             body: jsonEncode({"text": rawText}),
           )
-          .timeout(const Duration(seconds: 60)); // raised for LIME
+          .timeout(const Duration(seconds: 60));
 
       if (response.statusCode != 200) {
         String errorMsg = "Server error (${response.statusCode})";
@@ -113,7 +113,6 @@ class ModelService extends ChangeNotifier {
       final confidence = (data["confidence"] as num).toDouble();
       final elapsedMs  = data["elapsed_ms"] as int;
 
-      // ── Parse highlights ──────────────────────────────────────────────
       List<TextHighlight> highlights = [];
       if (data["highlights"] != null && data["highlights"] is List) {
         try {
@@ -142,7 +141,7 @@ class ModelService extends ChangeNotifier {
         fakeProb:   fakeScore,
         realProb:   realScore,
         analyzedAt: DateTime.now(),
-        highlights: highlights,   // ← was missing before
+        highlights: highlights,
       );
 
     } on SocketException {
@@ -174,7 +173,7 @@ class ModelService extends ChangeNotifier {
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode({'url': url}),
         )
-        .timeout(const Duration(seconds: 60)); // raised for LIME
+        .timeout(const Duration(seconds: 60));
 
     if (response.statusCode != 200) {
       final err = jsonDecode(response.body);
@@ -190,7 +189,6 @@ class ModelService extends ChangeNotifier {
     final realScore  = (data["real_score"] as num).toDouble();
     final confidence = (data["confidence"] as num).toDouble();
 
-    // ── Parse highlights ──────────────────────────────────────────────
     List<TextHighlight> highlights = [];
     if (data["highlights"] != null && data["highlights"] is List) {
       try {
@@ -202,11 +200,22 @@ class ModelService extends ChangeNotifier {
       }
     }
 
-    // Use article_snippet as displayed text when available
-    final displayText =
-        (data["article_snippet"] as String?)?.isNotEmpty == true
-            ? data["article_snippet"] as String
-            : url;
+    // ── Use article_text_for_model so displayed text matches highlights ──
+    // Priority: article_text_for_model (exact text LIME ran on)
+    //         → article_snippet (300 char preview)
+    //         → url (last resort)
+    final displayText = _firstNonEmpty([
+      data["article_text_for_model"] as String?,
+      data["article_snippet"]        as String?,
+      url,
+    ]);
+
+    debugPrint(
+      "✅ URL Prediction: ${data['label']} "
+      "(fake=$fakeScore, real=$realScore) "
+      "highlights=${highlights.length} "
+      "displayText=${displayText.length} chars",
+    );
 
     return ScanResult(
       id:         const Uuid().v4(),
@@ -219,6 +228,14 @@ class ModelService extends ChangeNotifier {
       analyzedAt: DateTime.now(),
       highlights: highlights,
     );
+  }
+
+  /// Returns the first non-null non-empty string from [candidates].
+  String _firstNonEmpty(List<String?> candidates) {
+    for (final s in candidates) {
+      if (s != null && s.trim().isNotEmpty) return s;
+    }
+    return '';
   }
 
   void _setError(String message, ScanErrorType type) {

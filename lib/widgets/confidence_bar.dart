@@ -11,13 +11,23 @@ class ConfidenceBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = result.isFake ? AppColors.fake : AppColors.real;
-    final bgColor = result.isFake ? AppColors.fakeLight : AppColors.realLight;
+    final isDark  = Theme.of(context).brightness == Brightness.dark;
+    final surface = Theme.of(context).colorScheme.surface;
+    final textPrimary = Theme.of(context).textTheme.bodyLarge?.color  ?? AppColors.textPrimary;
+    final textSecond  = Theme.of(context).textTheme.bodyMedium?.color ?? AppColors.textSecond;
+    final textHint    = Theme.of(context).textTheme.bodySmall?.color  ?? AppColors.textHint;
+    final barBg       = isDark ? const Color(0xFF2C2C2E) : Colors.grey.shade100;
+
+    final color   = result.isFake ? AppColors.fake : AppColors.real;
+    // In dark mode use a darker tint so the badge doesn't glare
+    final bgColor = result.isFake
+        ? (isDark ? const Color(0xFF4A1010) : AppColors.fakeLight)
+        : (isDark ? const Color(0xFF0D3320) : AppColors.realLight);
 
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -34,30 +44,21 @@ class ConfidenceBar extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Row(
+              Row(
                 children: [
-                  Icon(
-                    Icons.analytics_outlined,
-                    size: 18,
-                    color: AppColors.textSecond,
-                  ),
-                  SizedBox(width: 8),
-                  Text(
-                    'Confidence Score',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
+                  Icon(Icons.analytics_outlined,
+                      size: 18, color: textSecond),
+                  const SizedBox(width: 8),
+                  Text('Confidence Score',
+                      style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: textPrimary)),
                 ],
               ),
               // Score badge
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
                   color: bgColor,
                   borderRadius: BorderRadius.circular(8),
@@ -65,10 +66,7 @@ class ConfidenceBar extends StatelessWidget {
                 child: Text(
                   result.confidencePercent,
                   style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: color,
-                  ),
+                      fontSize: 16, fontWeight: FontWeight.bold, color: color),
                 ),
               ),
             ],
@@ -86,7 +84,7 @@ class ConfidenceBar extends StatelessWidget {
               builder: (context, value, _) {
                 return LinearProgressIndicator(
                   value: value,
-                  backgroundColor: Colors.grey.shade100,
+                  backgroundColor: barBg,
                   valueColor: AlwaysStoppedAnimation<Color>(color),
                   minHeight: 12,
                 );
@@ -100,19 +98,10 @@ class ConfidenceBar extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                '0%',
-                style: TextStyle(
-                  fontSize: 11,
-                  color: AppColors.textHint,
-                ),
-              ),
-              // Level indicator
+              Text('0%',
+                  style: TextStyle(fontSize: 11, color: textHint)),
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 3,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   color: bgColor,
                   borderRadius: BorderRadius.circular(4),
@@ -120,37 +109,34 @@ class ConfidenceBar extends StatelessWidget {
                 child: Text(
                   result.confidenceLevel,
                   style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: color,
-                  ),
+                      fontSize: 11, fontWeight: FontWeight.w600, color: color),
                 ),
               ),
-              const Text(
-                '100%',
-                style: TextStyle(
-                  fontSize: 11,
-                  color: AppColors.textHint,
-                ),
-              ),
+              Text('100%',
+                  style: TextStyle(fontSize: 11, color: textHint)),
             ],
           ),
 
           const SizedBox(height: 16),
 
-          // Score breakdown
           _buildScoreRow(
+            context: context,
             label: 'Fake Probability',
             value: result.isFake ? result.confidence : 1 - result.confidence,
             color: AppColors.fake,
+            barBg: barBg,
+            textSecond: textSecond,
           ),
 
           const SizedBox(height: 8),
 
           _buildScoreRow(
+            context: context,
             label: 'Real Probability',
             value: result.isFake ? 1 - result.confidence : result.confidence,
             color: AppColors.real,
+            barBg: barBg,
+            textSecond: textSecond,
           ),
         ],
       ),
@@ -158,66 +144,46 @@ class ConfidenceBar extends StatelessWidget {
   }
 
   Widget _buildScoreRow({
+    required BuildContext context,
     required String label,
     required double value,
     required Color color,
+    required Color barBg,
+    required Color textSecond,
   }) {
     final percent = (value * 100).toStringAsFixed(1);
 
     return Row(
       children: [
-        // Dot indicator
         Container(
-          width: 8,
-          height: 8,
-          decoration: BoxDecoration(
-            color: color,
-            shape: BoxShape.circle,
-          ),
+          width: 8, height: 8,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
-
         const SizedBox(width: 8),
-
-        // Label
         Expanded(
-          child: Text(
-            label,
-            style: const TextStyle(
-              fontSize: 13,
-              color: AppColors.textSecond,
-            ),
-          ),
+          child: Text(label,
+              style: TextStyle(fontSize: 13, color: textSecond)),
         ),
-
-        // Mini bar
         SizedBox(
           width: 80,
           child: ClipRRect(
             borderRadius: BorderRadius.circular(4),
             child: LinearProgressIndicator(
               value: value,
-              backgroundColor: Colors.grey.shade100,
-              valueColor: AlwaysStoppedAnimation<Color>(
-                color.withOpacity(0.5),
-              ),
+              backgroundColor: barBg,
+              valueColor: AlwaysStoppedAnimation<Color>(color.withOpacity(0.5)),
               minHeight: 6,
             ),
           ),
         ),
-
         const SizedBox(width: 8),
-
-        // Percentage
         SizedBox(
           width: 40,
           child: Text(
             '$percent%',
             textAlign: TextAlign.right,
             style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: color,
-            ),
+                fontSize: 12, fontWeight: FontWeight.w600, color: color),
           ),
         ),
       ],

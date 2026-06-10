@@ -9,62 +9,32 @@ import '../widgets/confidence_bar.dart';
 
 class ResultScreen extends StatelessWidget {
   final ScanResult result;
-
   const ResultScreen({super.key, required this.result});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: const Text('Detection Result'),
-      ),
+      appBar: AppBar(title: const Text('Detection Result')),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(20),
           child: Column(
             children: [
-              // Verdict Card — unchanged
-              VerdictCard(result: result)
-                  .animate()
-                  .fadeIn()
-                  .scale(),
-
+              VerdictCard(result: result).animate().fadeIn().scale(),
               const SizedBox(height: 20),
-
-              // Confidence Bar — unchanged
               ConfidenceBar(result: result)
-                  .animate()
-                  .fadeIn(delay: 200.ms)
-                  .slideY(begin: 0.3, end: 0),
-
+                  .animate().fadeIn(delay: 200.ms).slideY(begin: 0.3, end: 0),
               const SizedBox(height: 20),
-
-              // Analyzed Text — now shows colour-highlighted spans
-              _buildTextCard()
-                  .animate()
-                  .fadeIn(delay: 300.ms)
-                  .slideY(begin: 0.3, end: 0),
-
+              _buildTextCard(context)
+                  .animate().fadeIn(delay: 300.ms).slideY(begin: 0.3, end: 0),
               const SizedBox(height: 20),
-
-              // AI Summary — sentence with highlighted key words
-              _buildAISummaryCard()
-                  .animate()
-                  .fadeIn(delay: 400.ms)
-                  .slideY(begin: 0.3, end: 0),
-
+              _buildAISummaryCard(context)
+                  .animate().fadeIn(delay: 400.ms).slideY(begin: 0.3, end: 0),
               const SizedBox(height: 20),
-
-              _buildTimestamp()
-                  .animate()
-                  .fadeIn(delay: 500.ms),
-
+              _buildTimestamp(context).animate().fadeIn(delay: 500.ms),
               const SizedBox(height: 20),
-
               _buildAnalyzeAnotherButton(context)
-                  .animate()
-                  .fadeIn(delay: 600.ms),
+                  .animate().fadeIn(delay: 600.ms),
             ],
           ),
         ),
@@ -72,13 +42,18 @@ class ResultScreen extends StatelessWidget {
     );
   }
 
-  // ── Analyzed Text — highlighted spans or plain preview fallback ──────────
-  Widget _buildTextCard() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
+  // ── Theme helpers ─────────────────────────────────────────────────────
+  Color _surface(BuildContext context) =>
+      Theme.of(context).colorScheme.surface;
+  Color _textPrimary(BuildContext context) =>
+      Theme.of(context).textTheme.bodyLarge?.color ?? AppColors.textPrimary;
+  Color _textSecond(BuildContext context) =>
+      Theme.of(context).textTheme.bodyMedium?.color ?? AppColors.textSecond;
+  Color _textHint(BuildContext context) =>
+      Theme.of(context).textTheme.bodySmall?.color ?? AppColors.textHint;
+
+  BoxDecoration _cardDecoration(BuildContext context) => BoxDecoration(
+        color: _surface(context),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -87,98 +62,103 @@ class ResultScreen extends StatelessWidget {
             offset: const Offset(0, 2),
           ),
         ],
-      ),
+      );
+
+  // ── Analyzed Text card ────────────────────────────────────────────────
+  Widget _buildTextCard(BuildContext context) {
+    final neutralColor = _textSecond(context);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: _cardDecoration(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          // Header
+          Row(
             children: [
-              Icon(Icons.article_outlined, size: 18, color: AppColors.textSecond),
-              SizedBox(width: 8),
+              Icon(Icons.article_outlined,
+                  size: 18, color: _textSecond(context)),
+              const SizedBox(width: 8),
               Text(
                 'Analyzed Text',
                 style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
+                  color: _textPrimary(context),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 12),
 
-          // Legend — only shown when highlights exist
+          // Legend — only when highlights exist
           if (result.highlights.isNotEmpty) ...[
             Row(
               children: [
-                _legendChip(const Color(0xFFFFCDD2), const Color(0xFFC62828), 'Suspicious'),
+                _legendChip(context, const Color(0xFFFFCDD2),
+                    const Color(0xFFC62828), 'Suspicious'),
                 const SizedBox(width: 10),
-                _legendChip(const Color(0xFFC8E6C9), const Color(0xFF2E7D32), 'Credible'),
+                _legendChip(context, const Color(0xFFC8E6C9),
+                    const Color(0xFF2E7D32), 'Credible'),
               ],
             ),
             const SizedBox(height: 10),
           ],
 
-          // Highlighted text or plain fallback
-          result.highlights.isNotEmpty
-              ? _buildHighlightedTextSpans()
-              : Text(
-                  result.text,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: AppColors.textSecond,
-                    height: 1.6,
-                  ),
+          // ── Highlighted text ────────────────────────────────────────
+          if (result.highlights.isNotEmpty)
+            Text.rich(
+              TextSpan(
+                // default style so neutral tokens inherit correct colour
+                style: TextStyle(
+                  fontSize: 13,
+                  height: 1.7,
+                  color: neutralColor,
                 ),
+                children: result.highlights.map((h) {
+                  if (h.label == 'fake') {
+                    return TextSpan(
+                      text: h.text,
+                      style: const TextStyle(
+                        color: Color(0xFFC62828),
+                        fontWeight: FontWeight.w700,
+                        backgroundColor: Color(0xFFFFCDD2),
+                      ),
+                    );
+                  }
+                  if (h.label == 'real') {
+                    return TextSpan(
+                      text: h.text,
+                      style: const TextStyle(
+                        color: Color(0xFF1B5E20),
+                        fontWeight: FontWeight.w700,
+                        backgroundColor: Color(0xFFC8E6C9),
+                      ),
+                    );
+                  }
+                  // neutral — inherits parent style (correct dark/light color)
+                  return TextSpan(text: h.text);
+                }).toList(),
+              ),
+            )
+          else
+            Text(
+              result.text,
+              style: TextStyle(
+                fontSize: 13,
+                color: neutralColor,
+                height: 1.6,
+              ),
+            ),
         ],
       ),
     );
   }
 
-  // Renders each token with its colour based on label
-  Widget _buildHighlightedTextSpans() {
-    return RichText(
-      text: TextSpan(
-        children: result.highlights.map((h) {
-          if (h.label == 'fake') {
-            return TextSpan(
-              text: h.text,
-              style: const TextStyle(
-                fontSize: 13,
-                height: 1.7,
-                color: Color(0xFFC62828),
-                fontWeight: FontWeight.w700,
-                backgroundColor: Color(0xFFFFCDD2),
-              ),
-            );
-          }
-          if (h.label == 'real') {
-            return TextSpan(
-              text: h.text,
-              style: const TextStyle(
-                fontSize: 13,
-                height: 1.7,
-                color: Color(0xFF1B5E20),
-                fontWeight: FontWeight.w700,
-                backgroundColor: Color(0xFFC8E6C9),
-              ),
-            );
-          }
-          // neutral
-          return TextSpan(
-            text: h.text,
-            style: const TextStyle(
-              fontSize: 13,
-              height: 1.7,
-              color: AppColors.textSecond,
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-
-  Widget _legendChip(Color bg, Color fg, String label) {
+  Widget _legendChip(
+      BuildContext context, Color bg, Color fg, String label) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -193,61 +173,59 @@ class ResultScreen extends StatelessWidget {
         ),
         const SizedBox(width: 4),
         Text(label,
-            style: const TextStyle(fontSize: 11, color: AppColors.textSecond)),
+            style:
+                TextStyle(fontSize: 11, color: _textSecond(context))),
       ],
     );
   }
 
-  // ── AI Summary — sentence with highlighted key words ─────────────────────
-  Widget _buildAISummaryCard() {
+  // ── AI Summary card ───────────────────────────────────────────────────
+  Widget _buildAISummaryCard(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final primaryLight =
+        isDark ? const Color(0xFF1A3A6B) : AppColors.primaryLight;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
+      decoration: _cardDecoration(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
-              Icon(Icons.psychology_outlined, size: 18, color: AppColors.primary),
-              SizedBox(width: 8),
+              const Icon(Icons.psychology_outlined,
+                  size: 18, color: AppColors.primary),
+              const SizedBox(width: 8),
               Text(
                 'AI Analysis Summary',
                 style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
+                  color: _textPrimary(context),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 12),
-          _buildSummaryRichText(),
+          _buildSummaryRichText(context),
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: AppColors.primaryLight,
+              color: primaryLight,
               borderRadius: BorderRadius.circular(8),
             ),
             child: const Row(
               children: [
-                Icon(Icons.info_outline, size: 14, color: AppColors.primary),
+                Icon(Icons.info_outline,
+                    size: 14, color: AppColors.primary),
                 SizedBox(width: 6),
                 Expanded(
                   child: Text(
                     'Powered by DistilBERT + Bi-LSTM hybrid model',
-                    style: TextStyle(fontSize: 11, color: AppColors.primary),
+                    style: TextStyle(
+                        fontSize: 11, color: AppColors.primary),
                   ),
                 ),
               ],
@@ -258,41 +236,47 @@ class ResultScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildSummaryRichText() {
-    // ── No highlights — describe the score without placeholders ─────────────
+  Widget _buildSummaryRichText(BuildContext context) {
+    final neutralColor = _textSecond(context);
+
+    // ── No highlights fallback ──────────────────────────────────────────
     if (result.highlights.isEmpty) {
       final fallback = result.isFake
           ? 'The model classified this content as likely fake with a '
-            '${(result.fakeProb * 100).toStringAsFixed(1)}% fake probability. '
-            'Word-level analysis was not available for this result.'
+              '${(result.fakeProb * 100).toStringAsFixed(1)}% fake probability. '
+              'Word-level analysis was not available for this result.'
           : 'The model classified this content as likely real with a '
-            '${(result.realProb * 100).toStringAsFixed(1)}% real probability. '
-            'Word-level analysis was not available for this result.';
-      return Text(
-        fallback,
-        style: const TextStyle(
-            fontSize: 13, color: AppColors.textSecond, height: 1.6),
-      );
+              '${(result.realProb * 100).toStringAsFixed(1)}% real probability. '
+              'Word-level analysis was not available for this result.';
+      return Text(fallback,
+          style: TextStyle(
+              fontSize: 13, color: neutralColor, height: 1.6));
     }
 
-    // ── Pick the top fake and real words ─────────────────────────────────────
+    // ── Top fake / real words ───────────────────────────────────────────
     final fakeTokens = result.highlights
         .where((h) => h.label == 'fake')
         .toList()
       ..sort((a, b) => b.score.compareTo(a.score));
-
     final realTokens = result.highlights
         .where((h) => h.label == 'real')
         .toList()
       ..sort((a, b) => a.score.compareTo(b.score));
 
-    final topFake  = fakeTokens.take(3).map((h) => h.text.trim()).where((t) => t.isNotEmpty).toList();
-    final topReal  = realTokens.take(2).map((h) => h.text.trim()).where((t) => t.isNotEmpty).toList();
+    final topFake = fakeTokens
+        .take(3)
+        .map((h) => h.text.trim())
+        .where((t) => t.isNotEmpty)
+        .toList();
+    final topReal = realTokens
+        .take(2)
+        .map((h) => h.text.trim())
+        .where((t) => t.isNotEmpty)
+        .toList();
     final scorePct = (result.fakeProb * 100).toStringAsFixed(1);
 
-    // ── Build sentence parts ──────────────────────────────────────────────────
+    // ── Build parts ─────────────────────────────────────────────────────
     final List<_Part> parts = [];
-
     void plain(String t) {
       if (t.isNotEmpty) parts.add(_Part(t));
     }
@@ -312,75 +296,80 @@ class ResultScreen extends StatelessWidget {
     }
 
     if (result.fakeProb >= 0.55) {
-      plain('The model flagged this content as likely misleading ($scorePct% fake probability). ');
+      plain(
+          'The model flagged this content as likely misleading ($scorePct% fake probability). ');
       if (topFake.isNotEmpty) {
         plain('The word${topFake.length > 1 ? 's' : ''} ');
         fakeWords(topFake);
         plain(
-          ' ${topFake.length > 1 ? 'push' : 'pushes'} the score toward fake'
-          ' — ${topFake.length > 1 ? 'they carry' : 'it carries'} emotional,'
-          ' sensational, or speculative language uncommon in factual reporting.',
-        );
+            ' ${topFake.length > 1 ? 'push' : 'pushes'} the score toward fake'
+            ' — ${topFake.length > 1 ? 'they carry' : 'it carries'} emotional,'
+            ' sensational, or speculative language uncommon in factual reporting.');
       }
       if (topReal.isNotEmpty) {
         plain(' In contrast, ');
         realWords(topReal);
         plain(
-          ' ${topReal.length == 1 ? 'pulls' : 'pull'} the score toward real'
-          ' — ${topReal.length == 1 ? 'it uses' : 'they use'} neutral language'
-          ' that reduced the overall fake score.',
-        );
+            ' ${topReal.length == 1 ? 'pulls' : 'pull'} the score toward real'
+            ' — ${topReal.length == 1 ? 'it uses' : 'they use'} neutral language'
+            ' that reduced the overall fake score.');
       }
       if (topFake.isEmpty) {
-        plain('Subtle linguistic patterns associated with misinformation were detected throughout the text.');
+        plain(
+            'Subtle linguistic patterns associated with misinformation were detected throughout the text.');
       }
     } else if (result.fakeProb <= 0.45) {
-      plain('The model considers this content likely credible ($scorePct% fake probability). ');
+      plain(
+          'The model considers this content likely credible ($scorePct% fake probability). ');
       if (topReal.isNotEmpty) {
         plain('The word${topReal.length > 1 ? 's' : ''} ');
         realWords(topReal);
         plain(
-          ' ${topReal.length > 1 ? 'anchor' : 'anchors'} the real score'
-          ' — ${topReal.length > 1 ? 'they use' : 'it uses'} neutral, factual'
-          ' language consistent with credible journalism.',
-        );
+            ' ${topReal.length > 1 ? 'anchor' : 'anchors'} the real score'
+            ' — ${topReal.length > 1 ? 'they use' : 'it uses'} neutral, factual'
+            ' language consistent with credible journalism.');
       }
       if (topFake.isNotEmpty) {
         plain(' However, ');
         fakeWords(topFake);
         plain(
-          ' ${topFake.length == 1 ? 'carries' : 'carry'} slightly charged'
-          ' language — exercise caution with'
-          ' ${topFake.length == 1 ? 'that phrase' : 'those phrases'}.',
-        );
+            ' ${topFake.length == 1 ? 'carries' : 'carry'} slightly charged'
+            ' language — exercise caution with'
+            ' ${topFake.length == 1 ? 'that phrase' : 'those phrases'}.');
       }
       if (topReal.isEmpty) {
-        plain('The overall tone and structure align with factual reporting, though always verify from multiple sources.');
+        plain(
+            'The overall tone and structure align with factual reporting, though always verify from multiple sources.');
       }
     } else {
       plain('The model is uncertain ($scorePct% — near 50/50). ');
       if (topFake.isNotEmpty) {
         fakeWords(topFake);
-        plain(' ${topFake.length == 1 ? 'leans' : 'lean'} toward misinformation');
+        plain(
+            ' ${topFake.length == 1 ? 'leans' : 'lean'} toward misinformation');
         plain(topReal.isNotEmpty ? ', while ' : '. ');
       }
       if (topReal.isNotEmpty) {
         realWords(topReal);
-        plain(' ${topReal.length == 1 ? 'reads' : 'read'} as more credible. ');
+        plain(
+            ' ${topReal.length == 1 ? 'reads' : 'read'} as more credible. ');
       }
       plain('Cross-check with a trusted source before sharing.');
     }
 
-    // ── Render as RichText ────────────────────────────────────────────────────
-    return RichText(
-      text: TextSpan(
+    // ── Render as Text.rich so it inherits DefaultTextStyle ─────────────
+    return Text.rich(
+      TextSpan(
+        style: TextStyle(
+          fontSize: 13,
+          height: 1.6,
+          color: neutralColor, // neutral parts inherit this
+        ),
         children: parts.map((p) {
           if (p.isFake == true) {
             return TextSpan(
               text: p.text,
               style: const TextStyle(
-                fontSize: 13,
-                height: 1.6,
                 color: Color(0xFFC62828),
                 fontWeight: FontWeight.w700,
                 backgroundColor: Color(0xFFFFCDD2),
@@ -391,45 +380,37 @@ class ResultScreen extends StatelessWidget {
             return TextSpan(
               text: p.text,
               style: const TextStyle(
-                fontSize: 13,
-                height: 1.6,
                 color: Color(0xFF1B5E20),
                 fontWeight: FontWeight.w700,
                 backgroundColor: Color(0xFFC8E6C9),
               ),
             );
           }
-          return TextSpan(
-            text: p.text,
-            style: const TextStyle(
-              fontSize: 13,
-              color: AppColors.textSecond,
-              height: 1.6,
-            ),
-          );
+          // plain — inherits parent colour automatically
+          return TextSpan(text: p.text);
         }).toList(),
       ),
     );
   }
 
-  // ── Timestamp — unchanged ────────────────────────────────────────────────
-  Widget _buildTimestamp() {
+  // ── Timestamp ─────────────────────────────────────────────────────────
+  Widget _buildTimestamp(BuildContext context) {
     final formatted =
         DateFormat('dd MMM yyyy, hh:mm a').format(result.timestamp);
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        const Icon(Icons.access_time, size: 14, color: AppColors.textHint),
+        Icon(Icons.access_time, size: 14, color: _textHint(context)),
         const SizedBox(width: 4),
         Text(
           'Analyzed on $formatted',
-          style: const TextStyle(fontSize: 12, color: AppColors.textHint),
+          style: TextStyle(fontSize: 12, color: _textHint(context)),
         ),
       ],
     );
   }
 
-  // ── Analyze Another button — unchanged ──────────────────────────────────
+  // ── Analyze Another button ────────────────────────────────────────────
   Widget _buildAnalyzeAnotherButton(BuildContext context) {
     return SizedBox(
       width: double.infinity,
@@ -445,18 +426,15 @@ class ResultScreen extends StatelessWidget {
           backgroundColor: AppColors.primary,
           foregroundColor: Colors.white,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-          ),
+              borderRadius: BorderRadius.circular(14)),
         ),
       ),
     );
   }
 }
 
-// ── Internal helper ──────────────────────────────────────────────────────────
 class _Part {
   final String text;
-  final bool? isFake; // true=red, false=green, null=plain
-
+  final bool? isFake;
   const _Part(this.text, {this.isFake});
 }
