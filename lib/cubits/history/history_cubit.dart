@@ -1,3 +1,4 @@
+// lib/cubits/history/history_cubit.dart
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'history_state.dart';
 import 'package:scamshield_app/services/database_service.dart';
@@ -8,17 +9,17 @@ class HistoryCubit extends Cubit<HistoryState> {
   HistoryCubit({required DatabaseService databaseService})
       : _databaseService = databaseService,
         super(HistoryInitial());
-  
+
   Future<void> loadHistory() async {
     emit(HistoryLoading());
-    try{
+    try {
       final results = await _databaseService.getAllScans();
       if (results.isEmpty) {
         emit(HistoryEmpty());
       } else {
         emit(HistoryLoaded(results: results));
       }
-    } catch (e){
+    } catch (e) {
       emit(const HistoryError(message: 'Failed to load history.'));
     }
   }
@@ -28,8 +29,9 @@ class HistoryCubit extends Cubit<HistoryState> {
     emit(HistoryEmpty());
   }
 
-  Future<void> deleteScan(int id) async {
-    await _databaseService.deleteScan(id as String);
+  // id is a String UUID — no casting needed
+  Future<void> deleteScan(String id) async {
+    await _databaseService.deleteScan(id);
     await loadHistory();
   }
 }

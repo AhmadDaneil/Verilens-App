@@ -12,6 +12,7 @@ import 'settings_screen.dart';
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
+  // Pages are defined once — IndexedStack keeps them all alive
   static const List<Widget> _pages = [
     AnalyzeScreen(),
     HistoryScreen(),
@@ -20,15 +21,13 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = context.watch<SettingsProvider>().darkMode;
-
     return BlocBuilder<NavigationCubit, NavigationState>(
       builder: (context, navState) {
         return Scaffold(
           appBar: AppBar(
-            title: Row(
+            title: const Row(
               mainAxisSize: MainAxisSize.min,
-              children: const [
+              children: [
                 Icon(Icons.security, color: Color(0xFF1A73E8), size: 24),
                 SizedBox(width: 8),
                 Text(
@@ -38,7 +37,11 @@ class HomeScreen extends StatelessWidget {
               ],
             ),
           ),
-          body: _pages[navState.currentIndex],
+          // ── IndexedStack keeps all pages alive ──────────────────────
+          body: IndexedStack(
+            index: navState.currentIndex,
+            children: _pages,
+          ),
           bottomNavigationBar: NavigationBar(
             selectedIndex: navState.currentIndex,
             onDestinationSelected: (index) =>
