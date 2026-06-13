@@ -1,5 +1,5 @@
-name: scamshield_app
-description: "ScamShield - AI-Powered Fake News Detection Mobile Application Using Distilbert Algorithm"
+name: verilens_app
+description: "Verilens - AI-Powered Fake News Detection Mobile Application Using Hybrid DistilBERT and BI-LSTM Algorithm"
 
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 version: 1.0.0+1

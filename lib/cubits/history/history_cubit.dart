@@ -1,7 +1,7 @@
 // lib/cubits/history/history_cubit.dart
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'history_state.dart';
-import 'package:scamshield_app/services/database_service.dart';
+import 'package:verilens_app/services/database_service.dart';
 
 class HistoryCubit extends Cubit<HistoryState> {
   final DatabaseService _databaseService;

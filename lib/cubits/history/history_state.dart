@@ -1,5 +1,5 @@
 import 'package:equatable/equatable.dart';
-import 'package:scamshield_app/models/scan_result.dart';
+import 'package:verilens_app/models/scan_result.dart';
 
 abstract class HistoryState extends Equatable{
 

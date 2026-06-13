@@ -2,8 +2,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'scan_state.dart';
-import 'package:scamshield_app/services/model_service.dart';
-import 'package:scamshield_app/services/database_service.dart';
+import 'package:verilens_app/services/model_service.dart';
+import 'package:verilens_app/services/database_service.dart';
 
 class ScanCubit extends Cubit<ScanState> {
   final ModelService modelService;

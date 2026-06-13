@@ -9,7 +9,7 @@ import '../cubits/navigation/navigation_state.dart';
 import '../models/scan_result.dart';
 import '../utils/app_colors.dart';
 import 'result_screen.dart';
-import 'package:scamshield_app/utils/history_tile.dart';
+import 'package:verilens_app/utils/history_tile.dart';
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
