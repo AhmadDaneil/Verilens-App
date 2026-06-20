@@ -32,11 +32,6 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // ── Theme-aware colours ───────────────────────────────────────────
-    final theme      = Theme.of(context);
-    final cs         = theme.colorScheme;
-    final isDark     = theme.brightness == Brightness.dark;
-
     return BlocConsumer<ScanCubit, ScanState>(
       listener: (context, state) {
         if (state is ScanSuccess) {
@@ -60,6 +55,10 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
         }
       },
       builder: (context, state) {
+        // ── Detect whether current input is a URL — drives button/hint text
+        final isUrlInput =
+            context.read<ScanCubit>().isUrl(_textController.text);
+
         return Scaffold(
           body: SafeArea(
             child: Column(
@@ -83,11 +82,15 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
                         const SizedBox(height: 20),
                         _buildTextInput(context).animate().fadeIn(delay: 200.ms),
                         const SizedBox(height: 8),
-                        _buildCharCounter(context).animate().fadeIn(delay: 250.ms),
+                        if (isUrlInput)
+                          _buildUrlBadge(context).animate().fadeIn()
+                        else
+                          _buildCharCounter(context).animate().fadeIn(delay: 250.ms),
                         const SizedBox(height: 8),
                         _buildActionButtons(context).animate().fadeIn(delay: 300.ms),
                         const SizedBox(height: 24),
-                        _buildAnalyzeButton(context, state).animate().fadeIn(delay: 400.ms),
+                        _buildAnalyzeButton(context, state, isUrlInput)
+                            .animate().fadeIn(delay: 400.ms),
                         const SizedBox(height: 20),
                         _buildTipsSection(context).animate().fadeIn(delay: 500.ms),
                       ],
@@ -99,6 +102,20 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
           ),
         );
       },
+    );
+  }
+
+  // ── URL detected badge (replaces char counter when input is a URL) ────
+  Widget _buildUrlBadge(BuildContext context) {
+    return Row(
+      children: [
+        const Icon(Icons.link, size: 14, color: AppColors.primary),
+        const SizedBox(width: 6),
+        const Text(
+          'URL detected — the article text will be extracted',
+          style: TextStyle(fontSize: 12, color: AppColors.primary, fontWeight: FontWeight.w500),
+        ),
+      ],
     );
   }
 
@@ -178,7 +195,7 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
             style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: textPrimary)),
         const SizedBox(height: 4),
         Text(
-          'Paste or type news content below to detect if it\'s fake or real.',
+          'Paste a news article or article URL below to detect if it\'s fake or real.',
           style: TextStyle(fontSize: 14, color: textSecond),
         ),
       ],
@@ -200,7 +217,7 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
           SizedBox(width: 12),
           Expanded(
             child: Text(
-              'Verilens uses DistilBERT + Bi-LSTM to analyze text patterns and detect misinformation.',
+              'VeriLens uses DistilBERT + Bi-LSTM to analyze text patterns and detect misinformation. Paste a URL and we\'ll extract the article for you.',
               style: TextStyle(fontSize: 12, color: AppColors.primary),
             ),
           ),
@@ -238,9 +255,10 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
         decoration: InputDecoration(
           counterText: '',
           hintText:
-              'Paste news headline or article text here...\n\n'
-              'Example:\n'
-              '"Scientists confirm miracle cure for all diseases discovered overnight"',
+              'Paste a news article, headline, or article URL...\n\n'
+              'Examples:\n'
+              '"Scientists confirm miracle cure for all diseases discovered overnight"\n'
+              'https://www.example.com/news/article-title',
           hintStyle: TextStyle(color: textSecond, fontSize: 14),
           contentPadding: const EdgeInsets.all(16),
           border: OutlineInputBorder(
@@ -288,13 +306,18 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
   }
 
   // ── Analyze button ────────────────────────────────────────────────────
-  Widget _buildAnalyzeButton(BuildContext context, ScanState state) {
+  Widget _buildAnalyzeButton(BuildContext context, ScanState state, bool isUrlInput) {
     final isLoading = state is ScanLoading;
-    final length    = _textController.text.trim().length;
-    final hasText   = length >= ModelService.minChars;
-    final tooLong   = length > _maxChars;
+    final trimmed   = _textController.text.trim();
+    final length    = trimmed.length;
+
+    // For URLs, only require non-empty; for text, enforce min/max chars
+    final hasValidInput = isUrlInput
+        ? trimmed.isNotEmpty
+        : (length >= ModelService.minChars && length <= _maxChars);
+
     final isOffline = state is ScanError && state.errorType == ScanErrorType.offline;
-    final enabled   = !isLoading && hasText && !tooLong && !isOffline;
+    final enabled   = !isLoading && hasValidInput && !isOffline;
 
     return SizedBox(
       width: double.infinity,
@@ -309,23 +332,29 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
           elevation: enabled ? 2 : 0,
         ),
         child: isLoading
-            ? const Row(
+            ? Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  SizedBox(
+                  const SizedBox(
                     width: 20, height: 20,
                     child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
                   ),
-                  SizedBox(width: 12),
-                  Text('Analyzing...', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  const SizedBox(width: 12),
+                  Text(
+                    isUrlInput ? 'Extracting & analyzing...' : 'Analyzing...',
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
                 ],
               )
-            : const Row(
+            : Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.document_scanner, size: 20),
-                  SizedBox(width: 8),
-                  Text('Analyze Text', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  Icon(isUrlInput ? Icons.link : Icons.document_scanner, size: 20),
+                  const SizedBox(width: 8),
+                  Text(
+                    isUrlInput ? 'Analyze URL' : 'Analyze Text',
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
                 ],
               ),
       ),
@@ -342,14 +371,14 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
         Text('Tips for best results',
             style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: textPrimary)),
         const SizedBox(height: 12),
+        _buildTip(context, icon: Icons.link,
+            text: 'Paste a full article URL and we\'ll extract the text for you'),
         _buildTip(context, icon: Icons.text_fields,
-            text: 'Include the full headline and first few paragraphs'),
+            text: 'Or paste the full headline and first few paragraphs directly'),
         _buildTip(context, icon: Icons.translate,
-            text: 'English text only — other languages may give unreliable results'),
+            text: 'English content only — other languages may give unreliable results'),
         _buildTip(context, icon: Icons.wb_sunny_outlined,
-            text: 'Minimum ${ModelService.minChars} characters required for analysis'),
-        _buildTip(context, icon: Icons.format_size,
-            text: 'Maximum $_maxChars characters — very long articles can be trimmed'),
+            text: 'Minimum ${ModelService.minChars} characters required for text analysis'),
       ],
     );
   }
@@ -388,9 +417,10 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
     context.read<ScanCubit>().reset();
   }
 
+  // ── Routes to text or URL analysis automatically ───────────────────────
   void _onAnalyze() {
     FocusScope.of(context).unfocus();
-    context.read<ScanCubit>().analyzeText(_textController.text);
+    context.read<ScanCubit>().analyzeInput(_textController.text);
   }
 
   Color _snackbarColor(ScanErrorType type) {

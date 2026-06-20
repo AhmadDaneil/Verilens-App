@@ -16,8 +16,30 @@ class ScanCubit extends Cubit<ScanState> {
         _databaseService = databaseService,
         super(ScanInitial());
 
+  // Matches http:// or https:// URLs anywhere in the trimmed input,
+  // and requires the ENTIRE trimmed string to be just the URL (no
+  // surrounding sentence) so pasted article text containing a link
+  // inside it doesn't get misclassified as a URL-only scan.
+  static final RegExp _urlPattern = RegExp(
+    r'^https?:\/\/[^\s]+$',
+    caseSensitive: false,
+  );
+
+  bool isUrl(String text) => _urlPattern.hasMatch(text.trim());
+
+  // ── Main entry point — routes to text or URL analysis ────────────────
+  Future<void> analyzeInput(String input) async {
+    final trimmed = input.trim();
+
+    if (isUrl(trimmed)) {
+      await analyzeUrl(trimmed);
+    } else {
+      await analyzeText(trimmed);
+    }
+  }
+
+  // ── Text analysis (unchanged logic, renamed call site) ────────────────
   Future<void> analyzeText(String text) async {
-    // ── Input validation ──────────────────────────────────────────────
     final trimmed = text.trim();
 
     if (trimmed.isEmpty) {
@@ -46,61 +68,78 @@ class ScanCubit extends Cubit<ScanState> {
       return;
     }
 
-    // Non-English detection: flag if fewer than 30% of characters are
-    // ASCII letters/digits/punctuation. This catches CJK, Arabic, Cyrillic,
-    // etc. without pulling in a language detection library.
     if (_likelyNonEnglish(trimmed)) {
       emit(const ScanError(
-        message: 'ScamShield is optimised for English text. '
+        message: 'VeriLens is optimised for English text. '
             'Results for other languages may not be reliable.',
         errorType: ScanErrorType.input,
       ));
       return;
     }
 
-    // ── Network call ──────────────────────────────────────────────────
     emit(ScanLoading());
     try {
-      final result = await modelService.predict(text);
+      final result = await modelService.predict(trimmed);
       await _databaseService.insertScan(result);
       emit(ScanSuccess(result: result));
     } on ApiException catch (e) {
       emit(ScanError(message: e.message, errorType: e.type));
     } catch (e, stackTrace) {
       debugPrint("🔥 Unexpected error: $e\n$stackTrace");
-      emit(ScanError(
+      emit(const ScanError(
         message: 'Something went wrong. Please try again.',
         errorType: ScanErrorType.server,
       ));
     }
   }
 
-  // Returns true if the text appears to be predominantly non-English.
-  // Heuristic: if over 40% of non-whitespace chars are outside the
-  // printable ASCII range (0x20–0x7E), it's likely non-Latin script.
+  // ── URL analysis — fetches & extracts article, then predicts ──────────
+  Future<void> analyzeUrl(String url) async {
+    final trimmed = url.trim();
+
+    if (trimmed.isEmpty) {
+      emit(const ScanError(
+        message: 'Please enter a URL to analyze.',
+        errorType: ScanErrorType.input,
+      ));
+      return;
+    }
+
+    emit(ScanLoading());
+    try {
+      final result = await modelService.scanUrl(trimmed);
+      await _databaseService.insertScan(result);
+      emit(ScanSuccess(result: result));
+    } on ApiException catch (e) {
+      emit(ScanError(message: e.message, errorType: e.type));
+    } catch (e, stackTrace) {
+      debugPrint("🔥 Unexpected URL scan error: $e\n$stackTrace");
+      emit(const ScanError(
+        message: 'Could not analyze that URL. Please check the link and try again.',
+        errorType: ScanErrorType.server,
+      ));
+    }
+  }
+
   bool _likelyNonEnglish(String text) {
     final chars = text.replaceAll(RegExp(r'\s'), '');
     if (chars.isEmpty) return false;
-
-    final nonAscii = chars.codeUnits
-        .where((c) => c > 0x7E || c < 0x20)
-        .length;
-
+    final nonAscii = chars.codeUnits.where((c) => c > 0x7E || c < 0x20).length;
     return (nonAscii / chars.length) > 0.40;
   }
 
   void reset() => emit(ScanInitial());
 
- Future<void> retryAndAnalyze(String text) async {
-  emit(ScanLoading());
-  await modelService.loadModel();
-  if (modelService.isLoaded) {
-    await analyzeText(text);
-  } else {
-    emit(ScanError(
-      message: modelService.errorMessage ?? 'Still unreachable. Please try again.',
-      errorType: modelService.errorType ?? ScanErrorType.offline,
-    ));
+  Future<void> retryAndAnalyze(String input) async {
+    emit(ScanLoading());
+    await modelService.loadModel();
+    if (modelService.isLoaded) {
+      await analyzeInput(input);
+    } else {
+      emit(ScanError(
+        message: modelService.errorMessage ?? 'Still unreachable. Please try again.',
+        errorType: modelService.errorType ?? ScanErrorType.offline,
+      ));
+    }
   }
-}
 }
