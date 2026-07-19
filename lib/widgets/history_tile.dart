@@ -16,6 +16,37 @@ class HistoryTile extends StatelessWidget {
     required this.onDelete,
   });
 
+  // ── Verdict colours ───────────────────────────────────────────────────
+  Color _labelColor(bool isDark) {
+    switch (result.verdict) {
+      case Verdict.fake:
+        return AppColors.fake;
+      case Verdict.real:
+        return AppColors.real;
+      case Verdict.uncertain:
+        return AppColors.warning;
+    }
+  }
+
+  Color _labelBg(bool isDark) {
+    switch (result.verdict) {
+      case Verdict.fake:
+        return isDark ? const Color(0xFF4A1010) : AppColors.fakeLight;
+      case Verdict.real:
+        return isDark ? const Color(0xFF0D3320) : AppColors.realLight;
+      case Verdict.uncertain:
+        return isDark ? const Color(0xFF3D2800) : AppColors.warningLight;
+    }
+  }
+
+  IconData _labelIcon() {
+    switch (result.verdict) {
+      case Verdict.fake:      return Icons.cancel_outlined;
+      case Verdict.real:      return Icons.check_circle_outline;
+      case Verdict.uncertain: return Icons.help_outline;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark      = Theme.of(context).brightness == Brightness.dark;
@@ -24,14 +55,10 @@ class HistoryTile extends StatelessWidget {
     final textSecond  = Theme.of(context).textTheme.bodyMedium?.color ?? AppColors.textSecond;
     final textHint    = Theme.of(context).textTheme.bodySmall?.color  ?? AppColors.textHint;
 
-    final isFake     = result.isFake;
-    final labelColor = isFake ? AppColors.fake : AppColors.real;
-    final labelBg    = isFake
-        ? (isDark ? const Color(0xFF4A1010) : AppColors.fakeLight)
-        : (isDark ? const Color(0xFF0D3320) : AppColors.realLight);
-
-    final formatted  = DateFormat('dd MMM yyyy, hh:mm a').format(result.timestamp);
-    final confidence = (result.confidence * 100).toStringAsFixed(1);
+    final labelColor  = _labelColor(isDark);
+    final labelBg     = _labelBg(isDark);
+    final formatted   = DateFormat('dd MMM yyyy, hh:mm a').format(result.timestamp);
+    final confidence  = (result.confidence * 100).toStringAsFixed(1);
 
     return Material(
       color: Colors.transparent,
@@ -54,10 +81,9 @@ class HistoryTile extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // ── Top row: verdict badge + confidence + delete ──────────
+              // ── Top row: verdict + confidence + delete ────────────────
               Row(
                 children: [
-                  // Verdict badge
                   Container(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 10, vertical: 4),
@@ -68,13 +94,7 @@ class HistoryTile extends StatelessWidget {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(
-                          isFake
-                              ? Icons.cancel_outlined
-                              : Icons.check_circle_outline,
-                          size: 13,
-                          color: labelColor,
-                        ),
+                        Icon(_labelIcon(), size: 13, color: labelColor),
                         const SizedBox(width: 4),
                         Text(
                           result.label,
@@ -87,10 +107,7 @@ class HistoryTile extends StatelessWidget {
                       ],
                     ),
                   ),
-
                   const SizedBox(width: 8),
-
-                  // Confidence percentage
                   Container(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 8, vertical: 4),
@@ -109,10 +126,7 @@ class HistoryTile extends StatelessWidget {
                       ),
                     ),
                   ),
-
                   const Spacer(),
-
-                  // Delete button
                   GestureDetector(
                     onTap: onDelete,
                     child: Container(
@@ -121,11 +135,8 @@ class HistoryTile extends StatelessWidget {
                         color: AppColors.fake.withOpacity(0.08),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: const Icon(
-                        Icons.delete_outline,
-                        size: 16,
-                        color: AppColors.fake,
-                      ),
+                      child: const Icon(Icons.delete_outline,
+                          size: 16, color: AppColors.fake),
                     ),
                   ),
                 ],
@@ -139,15 +150,12 @@ class HistoryTile extends StatelessWidget {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontSize: 13,
-                  color: textPrimary,
-                  height: 1.5,
-                ),
+                    fontSize: 13, color: textPrimary, height: 1.5),
               ),
 
               const SizedBox(height: 10),
 
-              // ── Confidence mini-bar ───────────────────────────────────
+              // ── Mini progress bar ─────────────────────────────────────
               ClipRRect(
                 borderRadius: BorderRadius.circular(4),
                 child: LinearProgressIndicator(
@@ -162,7 +170,7 @@ class HistoryTile extends StatelessWidget {
 
               const SizedBox(height: 10),
 
-              // ── Bottom row: timestamp + confidence level ──────────────
+              // ── Bottom row: timestamp + confidence level ───────────────
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -170,10 +178,9 @@ class HistoryTile extends StatelessWidget {
                     children: [
                       Icon(Icons.access_time, size: 12, color: textHint),
                       const SizedBox(width: 4),
-                      Text(
-                        formatted,
-                        style: TextStyle(fontSize: 11, color: textHint),
-                      ),
+                      Text(formatted,
+                          style:
+                              TextStyle(fontSize: 11, color: textHint)),
                     ],
                   ),
                   Text(

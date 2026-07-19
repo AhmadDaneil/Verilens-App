@@ -1,3 +1,4 @@
+// lib/services/model_service.dart
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -38,7 +39,6 @@ class ModelService extends ChangeNotifier {
       final response = await http
           .get(Uri.parse("$_baseUrl/health"))
           .timeout(const Duration(seconds: 10));
-
       if (response.statusCode == 200) {
         final body = jsonDecode(response.body);
         debugPrint("✅ API ready — device: ${body['device']}");
@@ -48,42 +48,55 @@ class ModelService extends ChangeNotifier {
         _errorType    = null;
       } else {
         throw ApiException(
-          "Server returned status ${response.statusCode}",
-          ScanErrorType.server,
-        );
+            "Server returned status ${response.statusCode}",
+            ScanErrorType.server);
       }
     } on SocketException {
-      _setError("No internet connection. Please check your network.", ScanErrorType.offline);
+      _setError("No internet connection. Please check your network.",
+          ScanErrorType.offline);
     } on TimeoutException {
-      _setError("Connection timed out. The server may be unavailable.", ScanErrorType.timeout);
+      _setError("Connection timed out. The server may be unavailable.",
+          ScanErrorType.timeout);
     } on ApiException catch (e) {
       _setError(e.message, e.type);
     } catch (e) {
-      _setError("Could not reach the server. Please try again.", ScanErrorType.server);
+      _setError("Could not reach the server. Please try again.",
+          ScanErrorType.server);
     }
     notifyListeners();
   }
 
   Future<void> retry() => loadModel();
 
-  // ── Predict (text input) ──────────────────────────────────────────────
+  // ── Parse highlights helper ───────────────────────────────────────────
+  List<TextHighlight> _parseHighlights(dynamic raw) {
+    if (raw == null || raw is! List) return [];
+    try {
+      return (raw as List)
+          .map((h) => TextHighlight.fromJson(h as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      debugPrint("⚠️ Failed to parse highlights: $e");
+      return [];
+    }
+  }
+
+  // ── Predict (text) ────────────────────────────────────────────────────
   Future<ScanResult> predict(String rawText) async {
     debugPrint("🔥 predict() called, isLoaded=$_isLoaded");
 
     if (!_isLoaded) {
       throw ApiException(
-        'Server not reachable — please check your connection.',
-        ScanErrorType.offline,
-      );
+          'Server not reachable — please check your connection.',
+          ScanErrorType.offline);
     }
 
     final trimmed = rawText.trim();
     if (trimmed.length > maxChars) {
       throw ApiException(
-        'Text is too long (${trimmed.length} chars). '
-        'Please shorten to $maxChars characters or fewer.',
-        ScanErrorType.input,
-      );
+          'Text is too long (${trimmed.length} chars). '
+          'Please shorten to $maxChars characters or fewer.',
+          ScanErrorType.input);
     }
 
     final t0 = DateTime.now();
@@ -106,26 +119,18 @@ class ModelService extends ChangeNotifier {
         throw ApiException(errorMsg, ScanErrorType.server);
       }
 
-      final data       = jsonDecode(response.body);
-      final isFake     = data["is_fake"]    as bool;
-      final fakeScore  = (data["fake_score"] as num).toDouble();
-      final realScore  = (data["real_score"] as num).toDouble();
-      final confidence = (data["confidence"] as num).toDouble();
-      final elapsedMs  = data["elapsed_ms"] as int;
-
-      List<TextHighlight> highlights = [];
-      if (data["highlights"] != null && data["highlights"] is List) {
-        try {
-          highlights = (data["highlights"] as List)
-              .map((h) => TextHighlight.fromJson(h as Map<String, dynamic>))
-              .toList();
-        } catch (e) {
-          debugPrint("⚠️ Failed to parse highlights: $e");
-        }
-      }
+      final data         = jsonDecode(response.body);
+      final isFake       = data["is_fake"]    as bool;
+      final fakeScore    = (data["fake_score"] as num).toDouble();
+      final realScore    = (data["real_score"] as num).toDouble();
+      final confidence   = (data["confidence"] as num).toDouble();
+      final elapsedMs    = data["elapsed_ms"] as int;
+      final verdictLabel = data["label"] as String? ??
+          (isFake ? 'FAKE' : 'REAL');           // fallback for old backend
+      final highlights   = _parseHighlights(data["highlights"]);
 
       debugPrint(
-        "✅ Prediction: ${data['label']} "
+        "✅ Prediction: $verdictLabel "
         "(fake=$fakeScore, real=$realScore) "
         "highlights=${highlights.length} "
         "in ${DateTime.now().difference(t0).inMilliseconds}ms "
@@ -133,35 +138,32 @@ class ModelService extends ChangeNotifier {
       );
 
       return ScanResult(
-        id:         const Uuid().v4(),
-        text:       rawText,
-        isFake:     isFake,
-        confidence: confidence,
-        timestamp:  DateTime.now(),
-        fakeProb:   fakeScore,
-        realProb:   realScore,
-        analyzedAt: DateTime.now(),
-        highlights: highlights,
+        id:           const Uuid().v4(),
+        text:         rawText,
+        isFake:       isFake,
+        confidence:   confidence,
+        timestamp:    DateTime.now(),
+        fakeProb:     fakeScore,
+        realProb:     realScore,
+        analyzedAt:   DateTime.now(),
+        highlights:   highlights,
+        verdictLabel: verdictLabel,
       );
 
     } on SocketException {
       throw ApiException(
-        'No internet connection. Please check your network and try again.',
-        ScanErrorType.offline,
-      );
+          'No internet connection. Please check your network and try again.',
+          ScanErrorType.offline);
     } on TimeoutException {
       throw ApiException(
-        'The request timed out. The server may be overloaded — please try again shortly.',
-        ScanErrorType.timeout,
-      );
+          'The request timed out. The server may be overloaded — please try again shortly.',
+          ScanErrorType.timeout);
     } on ApiException {
       rethrow;
     } catch (e) {
       debugPrint("❌ predict() unexpected error: $e");
       throw ApiException(
-        'Something went wrong. Please try again.',
-        ScanErrorType.server,
-      );
+          'Something went wrong. Please try again.', ScanErrorType.server);
     }
   }
 
@@ -178,32 +180,18 @@ class ModelService extends ChangeNotifier {
     if (response.statusCode != 200) {
       final err = jsonDecode(response.body);
       throw ApiException(
-        err['error'] ?? 'URL scan failed',
-        ScanErrorType.server,
-      );
+          err['error'] ?? 'URL scan failed', ScanErrorType.server);
     }
 
-    final data       = jsonDecode(response.body);
-    final isFake     = data["is_fake"]    as bool;
-    final fakeScore  = (data["fake_score"] as num).toDouble();
-    final realScore  = (data["real_score"] as num).toDouble();
-    final confidence = (data["confidence"] as num).toDouble();
+    final data         = jsonDecode(response.body);
+    final isFake       = data["is_fake"]    as bool;
+    final fakeScore    = (data["fake_score"] as num).toDouble();
+    final realScore    = (data["real_score"] as num).toDouble();
+    final confidence   = (data["confidence"] as num).toDouble();
+    final verdictLabel = data["label"] as String? ??
+        (isFake ? 'FAKE' : 'REAL');
+    final highlights   = _parseHighlights(data["highlights"]);
 
-    List<TextHighlight> highlights = [];
-    if (data["highlights"] != null && data["highlights"] is List) {
-      try {
-        highlights = (data["highlights"] as List)
-            .map((h) => TextHighlight.fromJson(h as Map<String, dynamic>))
-            .toList();
-      } catch (e) {
-        debugPrint("⚠️ Failed to parse URL highlights: $e");
-      }
-    }
-
-    // ── Use article_text_for_model so displayed text matches highlights ──
-    // Priority: article_text_for_model (exact text LIME ran on)
-    //         → article_snippet (300 char preview)
-    //         → url (last resort)
     final displayText = _firstNonEmpty([
       data["article_text_for_model"] as String?,
       data["article_snippet"]        as String?,
@@ -211,26 +199,26 @@ class ModelService extends ChangeNotifier {
     ]);
 
     debugPrint(
-      "✅ URL Prediction: ${data['label']} "
+      "✅ URL Prediction: $verdictLabel "
       "(fake=$fakeScore, real=$realScore) "
       "highlights=${highlights.length} "
       "displayText=${displayText.length} chars",
     );
 
     return ScanResult(
-      id:         const Uuid().v4(),
-      text:       displayText,
-      isFake:     isFake,
-      confidence: confidence,
-      timestamp:  DateTime.now(),
-      fakeProb:   fakeScore,
-      realProb:   realScore,
-      analyzedAt: DateTime.now(),
-      highlights: highlights,
+      id:           const Uuid().v4(),
+      text:         displayText,
+      isFake:       isFake,
+      confidence:   confidence,
+      timestamp:    DateTime.now(),
+      fakeProb:     fakeScore,
+      realProb:     realScore,
+      analyzedAt:   DateTime.now(),
+      highlights:   highlights,
+      verdictLabel: verdictLabel,
     );
   }
 
-  /// Returns the first non-null non-empty string from [candidates].
   String _firstNonEmpty(List<String?> candidates) {
     for (final s in candidates) {
       if (s != null && s.trim().isNotEmpty) return s;
@@ -246,7 +234,5 @@ class ModelService extends ChangeNotifier {
   }
 
   @override
-  void dispose() {
-    super.dispose();
-  }
+  void dispose() => super.dispose();
 }

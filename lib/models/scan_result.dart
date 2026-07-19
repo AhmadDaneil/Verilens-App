@@ -1,13 +1,14 @@
+// lib/models/scan_result.dart
 import 'dart:convert';
 import 'package:equatable/equatable.dart';
 import 'package:flutter/material.dart';
 
 // ---------------------------------------------------------------------------
-// TextHighlight — one token/phrase with its fake-score from the backend
+// TextHighlight
 // ---------------------------------------------------------------------------
 class TextHighlight extends Equatable {
   final String text;
-  final double score; // 0.0 = strongly real, 1.0 = strongly fake
+  final double score;
   final String label; // "fake" | "real" | "neutral"
 
   const TextHighlight({
@@ -17,13 +18,13 @@ class TextHighlight extends Equatable {
   });
 
   factory TextHighlight.fromJson(Map<String, dynamic> json) => TextHighlight(
-        text: json['text'] as String,
+        text:  json['text']  as String,
         score: (json['score'] as num).toDouble(),
         label: json['label'] as String,
       );
 
   Map<String, dynamic> toJson() => {
-        'text': text,
+        'text':  text,
         'score': score,
         'label': label,
       };
@@ -33,7 +34,12 @@ class TextHighlight extends Equatable {
 }
 
 // ---------------------------------------------------------------------------
-// ScanResult — extended with highlight + probability fields
+// Verdict enum — three-tier system
+// ---------------------------------------------------------------------------
+enum Verdict { fake, real, uncertain }
+
+// ---------------------------------------------------------------------------
+// ScanResult
 // ---------------------------------------------------------------------------
 class ScanResult extends Equatable {
   final String id;
@@ -41,23 +47,14 @@ class ScanResult extends Equatable {
   final bool isFake;
   final double confidence;
   final DateTime timestamp;
-
-  // ── New fields ────────────────────────────────────────────────────────────
-  /// Probability that the content is fake (0.0–1.0).
-  /// Derived from [isFake] + [confidence] when not supplied directly.
   final double fakeProb;
-
-  /// Probability that the content is real (0.0–1.0).
   final double realProb;
-
-  /// When the analysis was performed (defaults to [timestamp]).
   final DateTime analyzedAt;
-
-  /// Per-token highlight data returned by the backend LIME/SHAP step.
-  /// Empty list = backend did not return highlights (graceful fallback).
   final List<TextHighlight> highlights;
 
-  // ── Constructor ───────────────────────────────────────────────────────────
+  /// "FAKE" | "REAL" | "UNCERTAIN" — comes directly from backend label field
+  final String verdictLabel;
+
   ScanResult({
     required this.id,
     required this.text,
@@ -68,27 +65,48 @@ class ScanResult extends Equatable {
     double? fakeProb,
     double? realProb,
     DateTime? analyzedAt,
-  })  : highlights = highlights ?? const [],
-        // If fakeProb/realProb not supplied, derive from existing fields
-        fakeProb = fakeProb ?? (isFake ? confidence : 1.0 - confidence),
-        realProb = realProb ?? (isFake ? 1.0 - confidence : confidence),
-        analyzedAt = analyzedAt ?? timestamp;
+    String? verdictLabel,
+  })  : highlights   = highlights ?? const [],
+        fakeProb     = fakeProb   ?? (isFake ? confidence : 1.0 - confidence),
+        realProb     = realProb   ?? (isFake ? 1.0 - confidence : confidence),
+        analyzedAt   = analyzedAt ?? timestamp,
+        // Default: derive from isFake if no explicit label supplied
+        verdictLabel = verdictLabel ?? (isFake ? 'FAKE' : 'REAL');
 
-  // ── Existing getters (unchanged) ──────────────────────────────────────────
-  String get label => isFake ? 'FAKE NEWS' : 'REAL NEWS';
+  // ── Verdict enum ──────────────────────────────────────────────────────
+  Verdict get verdict {
+    switch (verdictLabel.toUpperCase()) {
+      case 'FAKE':
+        return Verdict.fake;
+      case 'REAL':
+        return Verdict.real;
+      default:
+        return Verdict.uncertain;
+    }
+  }
 
-  String get confidencePercent => '${(confidence * 100).toStringAsFixed(1)}%';
+  // ── Display helpers ───────────────────────────────────────────────────
+  String get label {
+    switch (verdict) {
+      case Verdict.fake:      return 'FAKE NEWS';
+      case Verdict.real:      return 'REAL NEWS';
+      case Verdict.uncertain: return 'UNCERTAIN';
+    }
+  }
+
+  String get confidencePercent =>
+      '${(confidence * 100).toStringAsFixed(1)}%';
 
   String get confidenceLevel {
-    if (confidence >= 0.85) return 'High Confidence';
-    if (confidence >= 0.65) return 'Moderate Confidence';
+    final pct = confidence * 100;
+    if (pct >= 85) return 'High Confidence';
+    if (pct >= 65) return 'Moderate Confidence';
     return 'Low Confidence';
   }
 
   String get preview =>
       text.length > 100 ? '${text.substring(0, 100)}...' : text;
 
-  // ── New getters (used by ResultScreen) ────────────────────────────────────
   String get confidenceLabel {
     final score = fakeProb * 100;
     if (score < 35) return 'High Confidence (Real)';
@@ -104,25 +122,26 @@ class ScanResult extends Equatable {
     return const Color(0xFFC62828);
   }
 
-  // ── SQLite serialisation ──────────────────────────────────────────────────
+  // ── SQLite ────────────────────────────────────────────────────────────
   Map<String, dynamic> toMap() => {
-        'id': id,
-        'text': text,
-        'isFake': isFake ? 1 : 0,
-        'confidence': confidence,
-        'timestamp': timestamp.millisecondsSinceEpoch,
-        // New columns — store highlights as a JSON string
-        'fakeProb': fakeProb,
-        'realProb': realProb,
-        'analyzedAt': analyzedAt.millisecondsSinceEpoch,
-        'highlights': jsonEncode(highlights.map((h) => h.toJson()).toList()),
+        'id':           id,
+        'text':         text,
+        'isFake':       isFake ? 1 : 0,
+        'confidence':   confidence,
+        'timestamp':    timestamp.millisecondsSinceEpoch,
+        'fakeProb':     fakeProb,
+        'realProb':     realProb,
+        'analyzedAt':   analyzedAt.millisecondsSinceEpoch,
+        'highlights':   jsonEncode(highlights.map((h) => h.toJson()).toList()),
+        'verdictLabel': verdictLabel,
       };
 
   factory ScanResult.fromMap(Map<String, dynamic> map) {
-    // Parse highlights — gracefully handles missing column (older DB rows)
     List<TextHighlight> highlights = [];
     final rawHighlights = map['highlights'];
-    if (rawHighlights != null && rawHighlights is String && rawHighlights.isNotEmpty) {
+    if (rawHighlights != null &&
+        rawHighlights is String &&
+        rawHighlights.isNotEmpty) {
       try {
         final decoded = jsonDecode(rawHighlights) as List<dynamic>;
         highlights = decoded
@@ -133,29 +152,30 @@ class ScanResult extends Equatable {
       }
     }
 
-    final isFake = map['isFake'] == 1;
-    final confidence = map['confidence'] as double;
+    final isFake     = map['isFake'] == 1;
+    final confidence = (map['confidence'] as num).toDouble();
 
     return ScanResult(
-      id: map['id'] as String,
-      text: map['text'] as String,
-      isFake: isFake,
-      confidence: confidence,
-      timestamp: DateTime.fromMillisecondsSinceEpoch(map['timestamp'] as int),
-      highlights: highlights,
-      fakeProb: map['fakeProb'] != null
+      id:           map['id'] as String,
+      text:         map['text'] as String,
+      isFake:       isFake,
+      confidence:   confidence,
+      timestamp:    DateTime.fromMillisecondsSinceEpoch(map['timestamp'] as int),
+      highlights:   highlights,
+      fakeProb:     map['fakeProb'] != null
           ? (map['fakeProb'] as num).toDouble()
           : (isFake ? confidence : 1.0 - confidence),
-      realProb: map['realProb'] != null
+      realProb:     map['realProb'] != null
           ? (map['realProb'] as num).toDouble()
           : (isFake ? 1.0 - confidence : confidence),
-      analyzedAt: map['analyzedAt'] != null
+      analyzedAt:   map['analyzedAt'] != null
           ? DateTime.fromMillisecondsSinceEpoch(map['analyzedAt'] as int)
           : DateTime.fromMillisecondsSinceEpoch(map['timestamp'] as int),
+      verdictLabel: map['verdictLabel'] as String? ??
+          (isFake ? 'FAKE' : 'REAL'),
     );
   }
 
-  // ── CopyWith ──────────────────────────────────────────────────────────────
   ScanResult copyWith({
     String? id,
     String? text,
@@ -166,24 +186,28 @@ class ScanResult extends Equatable {
     double? fakeProb,
     double? realProb,
     DateTime? analyzedAt,
+    String? verdictLabel,
   }) =>
       ScanResult(
-        id: id ?? this.id,
-        text: text ?? this.text,
-        isFake: isFake ?? this.isFake,
-        confidence: confidence ?? this.confidence,
-        timestamp: timestamp ?? this.timestamp,
-        highlights: highlights ?? this.highlights,
-        fakeProb: fakeProb ?? this.fakeProb,
-        realProb: realProb ?? this.realProb,
-        analyzedAt: analyzedAt ?? this.analyzedAt,
+        id:           id           ?? this.id,
+        text:         text         ?? this.text,
+        isFake:       isFake       ?? this.isFake,
+        confidence:   confidence   ?? this.confidence,
+        timestamp:    timestamp    ?? this.timestamp,
+        highlights:   highlights   ?? this.highlights,
+        fakeProb:     fakeProb     ?? this.fakeProb,
+        realProb:     realProb     ?? this.realProb,
+        analyzedAt:   analyzedAt   ?? this.analyzedAt,
+        verdictLabel: verdictLabel ?? this.verdictLabel,
       );
 
   @override
-  List<Object?> get props =>
-      [id, text, isFake, confidence, timestamp, fakeProb, realProb, analyzedAt, highlights];
+  List<Object?> get props => [
+        id, text, isFake, confidence, timestamp,
+        fakeProb, realProb, analyzedAt, highlights, verdictLabel,
+      ];
 
   @override
   String toString() =>
-      'ScanResult(id: $id, isFake: $isFake, fakeProb: $fakeProb, highlights: ${highlights.length})';
+      'ScanResult(id: $id, verdict: $verdictLabel, fakeProb: $fakeProb)';
 }

@@ -11,13 +11,33 @@ class VerdictCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = result.isFake ? AppColors.fake : AppColors.real;
-    final bgColor = result.isFake ? AppColors.fakeLight : AppColors.realLight;
-    final icon = result.isFake ? Icons.dangerous : Icons.verified;
-    final label = result.isFake ? 'FAKE NEWS' : 'REAL NEWS';
-    final subtitle = result.isFake
-        ? 'This content shows signs of misinformation'
-        : 'This content appears to be credible';
+    // ── All visual properties driven by Verdict enum ──────────────────
+    final Color color;
+    final IconData icon;
+    final String label;
+    final String subtitle;
+
+    switch (result.verdict) {
+      case Verdict.fake:
+        color    = AppColors.fake;
+        icon     = Icons.dangerous;
+        label    = 'FAKE NEWS';
+        subtitle = 'This content shows signs of misinformation';
+        break;
+      case Verdict.real:
+        color    = AppColors.real;
+        icon     = Icons.verified;
+        label    = 'REAL NEWS';
+        subtitle = 'This content appears to be credible';
+        break;
+      case Verdict.uncertain:
+        color    = AppColors.warning;
+        icon     = Icons.help_outline_rounded;
+        label    = 'UNCERTAIN';
+        subtitle = 'The model could not determine this with confidence — '
+            'verify from multiple sources before sharing';
+        break;
+    }
 
     return Container(
       width: double.infinity,
@@ -35,7 +55,7 @@ class VerdictCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          // Animated icon container
+          // Animated icon
           Container(
             width: 84,
             height: 84,
@@ -43,11 +63,7 @@ class VerdictCard extends StatelessWidget {
               color: Colors.white.withOpacity(0.2),
               shape: BoxShape.circle,
             ),
-            child: Icon(
-              icon,
-              size: 48,
-              color: Colors.white,
-            ),
+            child: Icon(icon, size: 48, color: Colors.white),
           )
               .animate(onPlay: (c) => c.repeat(reverse: true))
               .scale(
@@ -87,9 +103,7 @@ class VerdictCard extends StatelessWidget {
           // Confidence badge
           Container(
             padding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 8,
-            ),
+                horizontal: 16, vertical: 8),
             decoration: BoxDecoration(
               color: Colors.white.withOpacity(0.2),
               borderRadius: BorderRadius.circular(20),
@@ -97,11 +111,8 @@ class VerdictCard extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(
-                  Icons.analytics_outlined,
-                  size: 16,
-                  color: Colors.white,
-                ),
+                const Icon(Icons.analytics_outlined,
+                    size: 16, color: Colors.white),
                 const SizedBox(width: 6),
                 Text(
                   '${result.confidencePercent} — ${result.confidenceLevel}',
@@ -114,6 +125,33 @@ class VerdictCard extends StatelessWidget {
               ],
             ),
           ),
+
+          // Extra note for uncertain verdict
+          if (result.verdict == Verdict.uncertain) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.info_outline,
+                      size: 13, color: Colors.white70),
+                  const SizedBox(width: 6),
+                  Text(
+                    'fake score: ${(result.fakeProb * 100).toStringAsFixed(1)}% '
+                    '· real score: ${(result.realProb * 100).toStringAsFixed(1)}%',
+                    style: const TextStyle(
+                        fontSize: 11, color: Colors.white70),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
