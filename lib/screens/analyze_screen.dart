@@ -256,9 +256,9 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
           counterText: '',
           hintText:
               'Paste a news article, headline, or article URL...\n\n'
-              'Examples:\n'
-              '"Scientists confirm miracle cure for all diseases discovered overnight"\n'
-              'https://www.example.com/news/article-title',
+              'ATTENTION!\n'
+              'The result from of real or fake news of this app is not 100% accurate.\n'
+              'Please trust at your own discretion and verify the information from other sources.',
           hintStyle: TextStyle(color: textSecond, fontSize: 14),
           contentPadding: const EdgeInsets.all(16),
           border: OutlineInputBorder(

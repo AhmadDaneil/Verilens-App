@@ -20,202 +20,231 @@ class SettingsScreen extends StatelessWidget {
         ?? AppColors.textSecond;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(20),
-          children: [
-
-            // ── Appearance section ──────────────────────────────────────
-            _SectionHeader(label: 'Appearance', textColor: textSecond),
-            const SizedBox(height: 8),
-
-            _SettingsCard(
-              color: cardColor,
-              child: Column(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  // Dark mode toggle
-                  _SettingsRow(
-                    icon: isDark ? Icons.dark_mode : Icons.light_mode,
-                    iconColor: AppColors.primary,
-                    title: 'Dark Mode',
-                    subtitle: isDark ? 'On' : 'Off',
-                    textPrimary: textPrimary,
-                    textSecond: textSecond,
-                    trailing: Switch.adaptive(
-                      value: isDark,
-                      activeColor: AppColors.primary,
-                      onChanged: (v) => context.read<SettingsProvider>().setDarkMode(v),
-                    ),
-                  ),
-
-                  Divider(height: 1, color: Theme.of(context).dividerColor),
-
-                  // Font size slider
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Settings',
+                      style: TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.bold,
+                        color: textPrimary
+                      ),
+                      ),
+                      Text('Customize your experience',
+                      style: TextStyle(fontSize: 14, color: textSecond),
+                      ),
+                    ],
+                  )
+                ]
+              ),
+              Expanded(
+                child: ListView(
+                padding: const EdgeInsets.only(top: 20),
+                children: [
+                
+                  // ── Appearance section ──────────────────────────────────────
+                  _SectionHeader(label: 'Appearance', textColor: textSecond),
+                  const SizedBox(height: 8),
+                
+                  _SettingsCard(
+                    color: cardColor,
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          children: [
-                            Icon(Icons.text_fields,
-                                size: 20, color: AppColors.primary),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                        // Dark mode toggle
+                        _SettingsRow(
+                          icon: isDark ? Icons.dark_mode : Icons.light_mode,
+                          iconColor: AppColors.primary,
+                          title: 'Dark Mode',
+                          subtitle: isDark ? 'On' : 'Off',
+                          textPrimary: textPrimary,
+                          textSecond: textSecond,
+                          trailing: Switch.adaptive(
+                            value: isDark,
+                            activeColor: AppColors.primary,
+                            onChanged: (v) => context.read<SettingsProvider>().setDarkMode(v),
+                          ),
+                        ),
+                
+                        Divider(height: 1, color: Theme.of(context).dividerColor),
+                
+                        // Font size slider
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
                                 children: [
-                                  Text('Font Size',
-                                      style: TextStyle(
-                                          fontSize: 15,
-                                          fontWeight: FontWeight.w500,
-                                          color: textPrimary)),
-                                  Text(_fontLabel(settings.fontScale),
-                                      style: TextStyle(
-                                          fontSize: 12, color: textSecond)),
+                                  Icon(Icons.text_fields,
+                                      size: 20, color: AppColors.primary),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text('Font Size',
+                                            style: TextStyle(
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.w500,
+                                                color: textPrimary)),
+                                        Text(_fontLabel(settings.fontScale),
+                                            style: TextStyle(
+                                                fontSize: 12, color: textSecond)),
+                                      ],
+                                    ),
+                                  ),
+                                  // Live preview
+                                  Text(
+                                    'Aa',
+                                    style: TextStyle(
+                                      fontSize: 16 * settings.fontScale,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.primary,
+                                    ),
+                                  ),
                                 ],
                               ),
-                            ),
-                            // Live preview
-                            Text(
-                              'Aa',
-                              style: TextStyle(
-                                fontSize: 16 * settings.fontScale,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.primary,
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  Text('A',
+                                      style: TextStyle(
+                                          fontSize: 12, color: textSecond)),
+                                  Expanded(
+                                    child: Slider.adaptive(
+                                      value: settings.fontScale,
+                                      min: 0.8,
+                                      max: 1.4,
+                                      divisions: 6,
+                                      activeColor: AppColors.primary,
+                                      inactiveColor: AppColors.primary.withOpacity(0.2),
+                                      onChanged: (v) =>
+                                          context.read<SettingsProvider>().setFontScale(v),
+                                    ),
+                                  ),
+                                  Text('A',
+                                      style: TextStyle(
+                                          fontSize: 20, color: textSecond)),
+                                ],
                               ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Text('A',
-                                style: TextStyle(
-                                    fontSize: 12, color: textSecond)),
-                            Expanded(
-                              child: Slider.adaptive(
-                                value: settings.fontScale,
-                                min: 0.8,
-                                max: 1.4,
-                                divisions: 6,
-                                activeColor: AppColors.primary,
-                                inactiveColor: AppColors.primary.withOpacity(0.2),
-                                onChanged: (v) =>
-                                    context.read<SettingsProvider>().setFontScale(v),
+                              // Size labels under the slider
+                              Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 12),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    'XS', 'S', 'M', 'L', 'XL', 'XXL', 'Max'
+                                  ].map((l) => Text(l,
+                                      style: TextStyle(
+                                          fontSize: 10, color: textSecond))).toList(),
+                                ),
                               ),
-                            ),
-                            Text('A',
-                                style: TextStyle(
-                                    fontSize: 20, color: textSecond)),
-                          ],
-                        ),
-                        // Size labels under the slider
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              'XS', 'S', 'M', 'L', 'XL', 'XXL', 'Max'
-                            ].map((l) => Text(l,
-                                style: TextStyle(
-                                    fontSize: 10, color: textSecond))).toList(),
+                            ],
                           ),
                         ),
                       ],
                     ),
                   ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            // ── Preview section ────────────────────────────────────────
-            _SectionHeader(label: 'Preview', textColor: textSecond),
-            const SizedBox(height: 8),
-
-            _SettingsCard(
-              color: cardColor,
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Sample Headline Text',
-                      style: TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w700,
-                        color: textPrimary,
+                
+                  const SizedBox(height: 24),
+                
+                  // ── Preview section ────────────────────────────────────────
+                  _SectionHeader(label: 'Preview', textColor: textSecond),
+                  const SizedBox(height: 8),
+                
+                  _SettingsCard(
+                    color: cardColor,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Sample Headline Text',
+                            style: TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w700,
+                              color: textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'This is how body text will appear across the app. '
+                            'Adjust the slider above to find a comfortable reading size.',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: textSecond,
+                              height: 1.6,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              _PreviewChip(
+                                label: 'REAL NEWS',
+                                bg: AppColors.realLight,
+                                fg: AppColors.real,
+                              ),
+                              const SizedBox(width: 8),
+                              _PreviewChip(
+                                label: 'FAKE NEWS',
+                                bg: AppColors.fakeLight,
+                                fg: AppColors.fake,
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'This is how body text will appear across the app. '
-                      'Adjust the slider above to find a comfortable reading size.',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: textSecond,
-                        height: 1.6,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Row(
+                  ),
+                
+                  const SizedBox(height: 24),
+                
+                  // ── About section ──────────────────────────────────────────
+                  _SectionHeader(label: 'About', textColor: textSecond),
+                  const SizedBox(height: 8),
+                
+                  _SettingsCard(
+                    color: cardColor,
+                    child: Column(
                       children: [
-                        _PreviewChip(
-                          label: 'REAL NEWS',
-                          bg: AppColors.realLight,
-                          fg: AppColors.real,
+                        _SettingsRow(
+                          icon: Icons.info_outline,
+                          iconColor: AppColors.primary,
+                          title: 'Model',
+                          subtitle: 'DistilBERT + Bi-LSTM hybrid',
+                          textPrimary: textPrimary,
+                          textSecond: textSecond,
                         ),
-                        const SizedBox(width: 8),
-                        _PreviewChip(
-                          label: 'FAKE NEWS',
-                          bg: AppColors.fakeLight,
-                          fg: AppColors.fake,
+                        Divider(height: 1, color: Theme.of(context).dividerColor),
+                        _SettingsRow(
+                          icon: Icons.verified_outlined,
+                          iconColor: AppColors.real,
+                          title: 'Version',
+                          subtitle: '1.0.0',
+                          textPrimary: textPrimary,
+                          textSecond: textSecond,
                         ),
                       ],
                     ),
-                  ],
+                  ),
+                
+                  const SizedBox(height: 32),
+                ],
                 ),
               ),
-            ),
-
-            const SizedBox(height: 24),
-
-            // ── About section ──────────────────────────────────────────
-            _SectionHeader(label: 'About', textColor: textSecond),
-            const SizedBox(height: 8),
-
-            _SettingsCard(
-              color: cardColor,
-              child: Column(
-                children: [
-                  _SettingsRow(
-                    icon: Icons.info_outline,
-                    iconColor: AppColors.primary,
-                    title: 'Model',
-                    subtitle: 'DistilBERT + Bi-LSTM hybrid',
-                    textPrimary: textPrimary,
-                    textSecond: textSecond,
-                  ),
-                  Divider(height: 1, color: Theme.of(context).dividerColor),
-                  _SettingsRow(
-                    icon: Icons.verified_outlined,
-                    iconColor: AppColors.real,
-                    title: 'Version',
-                    subtitle: '1.0.0',
-                    textPrimary: textPrimary,
-                    textSecond: textSecond,
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 32),
-          ],
-        ),
+            ],
+          ),
+        )
       ),
     );
   }
@@ -255,23 +284,25 @@ class _SectionHeader extends StatelessWidget {
 class _SettingsCard extends StatelessWidget {
   final Widget child;
   final Color color;
-  const _SettingsCard({required this.child, required this.color});
+  const _SettingsCard({super.key, required this.child, required this.color});
 
   @override
   Widget build(BuildContext context) => Container(
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: child,
-      );
+          width: double.infinity,
+          margin: const EdgeInsets.symmetric(horizontal: 2),
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(22),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.06),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: child,
+        );
 }
 
 class _SettingsRow extends StatelessWidget {
@@ -332,7 +363,7 @@ class _PreviewChip extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         decoration: BoxDecoration(
           color: bg,
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(20),
         ),
         child: Text(label,
             style: TextStyle(
